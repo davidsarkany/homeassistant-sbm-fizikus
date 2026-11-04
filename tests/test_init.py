@@ -206,7 +206,7 @@ async def test_new_thermostat_is_added_without_reload(
     await hass.async_block_till_done()
 
     assert hass.states.get("climate.office").state == "heat"
-    assert hass.states.get("sensor.office_humidity").state == "60.0"
+    assert hass.states.get("sensor.office_humidity").state == "60"
     device = device_registry.async_get_device_by_identifier(
         (DOMAIN, f"{APARTMENT_ID}_1005"), config_entry.entry_id
     )
@@ -247,4 +247,4 @@ async def test_deleted_thermostat_gets_entities_when_it_comes_back(
     await hass.async_block_till_done()
 
     assert hass.states.get("climate.living_room").state == "heat"
-    assert hass.states.get("sensor.living_room_humidity").state == "60.0"
+    assert hass.states.get("sensor.living_room_humidity").state == "60"

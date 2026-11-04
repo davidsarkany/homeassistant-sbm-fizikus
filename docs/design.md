@@ -1,6 +1,6 @@
 # SBM Fizikus Home Assistant integration: design
 
-This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.0.
+This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.1.
 
 The reference implementation of the SBM API is the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge. Paths starting with `src/` refer to that repository.
 
@@ -110,7 +110,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 ### Climate entity (one per thermostat)
 
 - `has_entity_name = True` and `name = None`, so it takes the device name: `climate.living_room`, like the bridge. `unique_id` = `{apartment_id}_{thermostat_id}_climate`.
-- `native_temperature_unit` °C; `native_current_temperature` = `measuredTempDegC`, `current_humidity` = `measuredHumPerc`, `native_target_temperature` = `temperatureSetpointCommandDegC` while a new setpoint is pending, otherwise `temperatureSetpointDegC`, like the app. Only the `native_` properties: the old ones are deprecated and stop working in Home Assistant 2027.11.
+- `native_temperature_unit` °C; `native_current_temperature` = `measuredTempDegC`, `current_humidity` = `measuredHumPerc` as a whole percent, `native_target_temperature` = `temperatureSetpointCommandDegC` while a new setpoint is pending, otherwise `temperatureSetpointDegC`, like the app. Only the `native_` properties: the old ones are deprecated and stop working in Home Assistant 2027.11.
 - `min_temp` 5, `max_temp` 35, `target_temperature_step` 0.5 (the card steps by 0.5), `precision` tenths. `climate.set_temperature` accepts any value in range and rounds it to 0.1 °C before sending; Home Assistant checks the range. The bridge accepts only multiples of 0.5 °C.
 - `hvac_modes` = `[HEAT, COOL]`, like the bridge; `OFF` is added only while the system is switched off. `hvac_mode`: `OFF` while the system is switched off, otherwise `operationMode` 0 is `HEAT`, 1 is `COOL`, anything else is `None` (unknown, not off). The more-info dialog therefore shows a button for the other mode that has no effect; accepted for parity with the bridge. Not chosen: a dynamic `hvac_modes` holding only the current mode.
 - `set_hvac_mode` does nothing (another mode is logged at debug level), like the bridge. A scene sets the mode before the temperature, so an error would stop a scene saved in the other season, or while the system was off, before it sets its target temperature. `climate.set_temperature` with an `hvac_mode` ignores the mode the same way and sets the temperature. Home Assistant itself still refuses `OFF` while the system is on, as it is not in `hvac_modes`: a scene saved while the system was off fails then (a known limitation in the README). Not chosen: a `ServiceValidationError` for another mode; it gave feedback in the more-info dialog, but broke such scenes.
@@ -121,7 +121,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 
 | Key | Name | Value | Class | Enabled by default |
 |---|---|---|---|---|
-| `humidity` | Humidity | `measuredHumPerc` | humidity, measurement, % | yes |
+| `humidity` | Humidity | `measuredHumPerc` as an integer: the thermostats measure whole percents and SBM sends integers like `62` (live capture, 2026-11-04); a float would be rounded half up | humidity, measurement, % | yes |
 | `dew_point` | Dew point | `dewPointDegC` | temperature, measurement, °C | no |
 | `temperature` | Temperature | `measuredTempDegC` | temperature, measurement, °C | no |
 | `target_temperature` | Target temperature | `temperatureSetpointCommandDegC` while pending, otherwise `temperatureSetpointDegC` | temperature, measurement, °C | no |

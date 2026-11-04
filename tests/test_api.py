@@ -468,7 +468,7 @@ async def test_apartment_data(client: SbmClient) -> None:
         name="living-room",
         active=False,
         temperature=24.8,
-        humidity=60.0,
+        humidity=60,
         dew_point=15.934023536720074,
         target_temperature=23.0,
     )
@@ -581,6 +581,32 @@ async def test_pending_target_temperature(
     data = await client.async_get_apartment_data(APARTMENT_ID)
 
     assert data.thermostats[LIVING_ROOM_ID].target_temperature == expected
+
+
+@pytest.mark.parametrize(
+    ("humidity", "expected"),
+    [
+        # Live capture of 2026-11-04: SBM sends integers.
+        (62, 62),
+        (0, 0),
+        (100, 100),
+        # A float, should SBM ever send one, is rounded half up.
+        (60.0, 60),
+        (59.4, 59),
+        (59.5, 60),
+    ],
+)
+async def test_humidity_is_a_whole_number(
+    client: SbmClient, sbm: SbmStub, humidity: float, expected: int
+) -> None:
+    """The thermostats measure whole percents, so the humidity stays an integer."""
+    sbm.apartment_data["thermostats"][0]["measuredHumPerc"] = humidity
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
+
+    value = data.thermostats[LIVING_ROOM_ID].humidity
+    assert value == expected
+    assert type(value) is int
 
 
 @pytest.mark.parametrize(

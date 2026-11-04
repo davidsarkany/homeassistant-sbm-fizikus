@@ -203,7 +203,7 @@ async def test_switching_the_system_off_and_on(
     await refresh(config_entry)
 
     assert hass.states.get(LIVING_ROOM).state == "off"
-    assert hass.states.get("sensor.living_room_humidity").state == "60.0"
+    assert hass.states.get("sensor.living_room_humidity").state == "60"
     assert DISCONNECTED not in caplog.text
 
     sbm.apartment_data["disabled"] = False

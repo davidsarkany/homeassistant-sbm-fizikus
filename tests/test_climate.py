@@ -53,7 +53,7 @@ async def test_climate_entity(
     assert state.state == HVACMode.HEAT
     assert state.name == "living-room"
     assert state.attributes[ATTR_CURRENT_TEMPERATURE] == 24.8
-    assert state.attributes[ATTR_CURRENT_HUMIDITY] == 60.0
+    assert state.attributes[ATTR_CURRENT_HUMIDITY] == 60
     assert state.attributes[ATTR_TEMPERATURE] == 23.0
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.IDLE
     assert state.attributes[ATTR_HVAC_MODES] == [HVACMode.HEAT, HVACMode.COOL]

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-11-04)
+
+- Fixed: the humidity of the thermostats is shown as a whole number, like SBM reports it (`62 %`, not `62.0 %`), on the humidity sensor and the climate entity. The recorder history is not affected.
+
 ## 0.1.0 (2026-11-04)
 
 The first release.

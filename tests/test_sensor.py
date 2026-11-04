@@ -33,7 +33,7 @@ async def test_sensors(
     await setup_integration(hass, config_entry)
 
     humidity = hass.states.get("sensor.living_room_humidity")
-    assert humidity.state == "60.0"
+    assert humidity.state == "60"
     assert humidity.name == "living-room Humidity"
     assert humidity.attributes[ATTR_DEVICE_CLASS] == SensorDeviceClass.HUMIDITY
     assert humidity.attributes[ATTR_STATE_CLASS] == SensorStateClass.MEASUREMENT

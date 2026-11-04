@@ -101,7 +101,8 @@ class SbmThermostat:
     # The thermostat calls for heating or cooling.
     active: bool
     temperature: float | None
-    humidity: float | None
+    # The thermostats measure whole percents, and SBM sends them as integers.
+    humidity: int | None
     dew_point: float | None
     target_temperature: float | None
 
@@ -482,7 +483,7 @@ def _parse_thermostat(data: Mapping[str, Any]) -> SbmThermostat:
         name=_optional_text(data.get("name")),
         active=data.get("active") is True,
         temperature=_optional_float(data.get("measuredTempDegC")),
-        humidity=_optional_float(data.get("measuredHumPerc")),
+        humidity=_optional_whole_number(data.get("measuredHumPerc")),
         dew_point=_optional_float(data.get("dewPointDegC")),
         target_temperature=_target_temperature(data),
     )
@@ -538,6 +539,14 @@ def _optional_float(value: Any) -> float | None:
         if math.isfinite(number):
             return number
     return None
+
+
+def _optional_whole_number(value: Any) -> int | None:
+    """Return a finite JSON number rounded half up to an int, anything else as None."""
+    number = _optional_float(value)
+    if number is None:
+        return None
+    return int(Decimal(str(number)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
 def _row_float(row: list[Any], index: int) -> float | None:
