@@ -1,0 +1,81 @@
+{
+  "config": {
+    "abort": {
+      "all_apartments_configured": "Every apartment of this account is already set up.",
+      "already_configured": "This apartment is already set up.",
+      "no_apartments": "The SBM account has no apartment.",
+      "reauth_successful": "Re-authentication was successful."
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to SBM.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "Unexpected error."
+    },
+    "step": {
+      "apartment": {
+        "data": {
+          "apartment_id": "Apartment"
+        },
+        "data_description": {
+          "apartment_id": "The thermostats of this apartment show up in Home Assistant."
+        },
+        "description": "The account has more than one apartment that is not set up yet. Choose the one to set up now. To add another one, add the integration again.",
+        "title": "Choose the apartment"
+      },
+      "reauth_confirm": {
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "The password of the account. Home Assistant stores only a hash of it."
+        },
+        "description": "SBM refused the login of {username}. Enter the password of the account again.",
+        "title": "Re-enter the SBM password"
+      },
+      "user": {
+        "data": {
+          "password": "Password",
+          "username": "Username or email"
+        },
+        "data_description": {
+          "password": "The password of the account. Home Assistant stores only a hash of it.",
+          "username": "The username or email address you sign in to the SBM Fizikus app with."
+        },
+        "description": "Sign in with your SBM Fizikus account. When the account has more than one apartment, you choose one in the next step. To add another apartment, add the integration again.",
+        "title": "Connect to SBM Fizikus"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "system_mode": {
+        "state": {
+          "cooling": "Cooling",
+          "heating": "Heating",
+          "idle": "Idle",
+          "off": "Off"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "SBM refused the login. Re-enter the password of the account."
+    },
+    "building_not_found": {
+      "message": "SBM does not list the building of apartment {apartment_id}, so the outdoor temperature and humidity are not available."
+    },
+    "invalid_temperature": {
+      "message": "The target temperature must be a finite number. NaN and infinity are not allowed."
+    },
+    "set_temperature_failed": {
+      "message": "Setting the target temperature failed: {error}"
+    },
+    "switch_system_failed": {
+      "message": "Switching the SBM Fizikus system on or off failed: {error}"
+    },
+    "update_failed": {
+      "message": "Fetching the data from SBM failed: {error}"
+    }
+  }
+}

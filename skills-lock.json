@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "home-assistant-integration": {
+      "source": "denysdovhan/home-assistant-developer",
+      "sourceType": "github",
+      "skillPath": "skills/home-assistant-integration/SKILL.md",
+      "computedHash": "5aaf28e05f5a65adb8e5251ac1334a7dc1b3402f926246e5022761eb4bc65603"
+    }
+  }
+}

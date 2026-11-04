@@ -1,0 +1,86 @@
+[project]
+name = "homeassistant-sbm-fizikus"
+version = "0.1.0"
+description = "Home Assistant custom integration for SBM Fizikus thermostats"
+readme = "README.en.md"
+requires-python = ">=3.14.2"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    # The test package of Home Assistant core. It pins the Home Assistant release it
+    # belongs to, so upgrade it to move the tests to a new release.
+    "pytest-homeassistant==2026.11.0b6",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+# Home Assistant aliases httpx to httpx2 on import, which must happen before respx
+# imports httpx. The test helpers use respx directly, without its pytest plugin.
+addopts = "-p no:respx"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = [
+    # Raised by Home Assistant and its dependencies, not by the integration.
+    "ignore:Inheritance class HomeAssistantApplication from web.Application is discouraged:DeprecationWarning",
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:backoff",
+]
+
+[tool.coverage.run]
+source = ["custom_components/sbm_fizikus"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "A", "ASYNC", "B", "BLE", "C4", "D", "DTZ", "E", "F", "FBT", "FLY", "G", "I",
+    "ICN", "LOG", "N", "PERF", "PGH", "PIE", "PL", "PT", "PTH", "RET", "RSE", "RUF",
+    "S", "SIM", "SLF", "T20", "TID", "TRY", "UP", "W",
+]
+ignore = [
+    "D202",    # No blank lines allowed after function docstring
+    "D203",    # Conflicts with D211
+    "D213",    # Conflicts with D212
+    "PLR2004", # Magic values: status codes and fixture values read better inline
+    "RUF012",  # Home Assistant entity attributes are class-level lists
+    "TRY003",  # Messages are passed to the exceptions on purpose
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "D103",    # Test functions are named after what they check
+    "FBT001",  # Boolean parameters of parametrized tests
+    "PLR0913", # Tests take their fixtures and parameters as arguments
+    "PLR0917",
+    "S101",    # assert is how pytest checks
+    "S105",    # Fixture tokens and hashes are not secrets
+    "S106",
+    "SLF001",  # Tests look at private state on purpose
+]
+
+[tool.ruff.lint.isort]
+# The import order of Home Assistant core: Home Assistant in its own section.
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["custom_components", "tests"]
+section-order = [
+    "future", "standard-library", "third-party", "homeassistant", "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+homeassistant = ["homeassistant", "pytest_homeassistant"]

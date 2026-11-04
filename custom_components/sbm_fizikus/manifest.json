@@ -1,0 +1,13 @@
+{
+  "domain": "sbm_fizikus",
+  "name": "SBM Fizikus",
+  "categories": ["climate.thermostats_heating"],
+  "codeowners": ["@davidsarkany"],
+  "config_flow": true,
+  "documentation": "https://github.com/davidsarkany/homeassistant-sbm-fizikus",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/davidsarkany/homeassistant-sbm-fizikus/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

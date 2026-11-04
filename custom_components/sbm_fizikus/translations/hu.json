@@ -1,0 +1,81 @@
+{
+  "config": {
+    "abort": {
+      "all_apartments_configured": "A fiók minden lakása már be van állítva.",
+      "already_configured": "Ez a lakás már be van állítva.",
+      "no_apartments": "Az SBM-fiókhoz nem tartozik lakás.",
+      "reauth_successful": "Az újrahitelesítés sikerült."
+    },
+    "error": {
+      "cannot_connect": "Nem sikerült csatlakozni az SBM-hez.",
+      "invalid_auth": "Hibás felhasználónév vagy jelszó.",
+      "unknown": "Váratlan hiba történt."
+    },
+    "step": {
+      "apartment": {
+        "data": {
+          "apartment_id": "Lakás"
+        },
+        "data_description": {
+          "apartment_id": "Ennek a lakásnak a termosztátjai jelennek meg a Home Assistantban."
+        },
+        "description": "A fiókhoz több, még be nem állított lakás tartozik. Válaszd ki, melyiket állítsuk be most. Egy másik lakáshoz add hozzá újra az integrációt.",
+        "title": "Válaszd ki a lakást"
+      },
+      "reauth_confirm": {
+        "data": {
+          "password": "Jelszó"
+        },
+        "data_description": {
+          "password": "A fiók jelszava. A Home Assistant csak a jelszó hash-ét tárolja."
+        },
+        "description": "Az SBM elutasította {username} bejelentkezését. Add meg újra a fiók jelszavát.",
+        "title": "Add meg újra az SBM-jelszót"
+      },
+      "user": {
+        "data": {
+          "password": "Jelszó",
+          "username": "Felhasználónév vagy e-mail-cím"
+        },
+        "data_description": {
+          "password": "A fiók jelszava. A Home Assistant csak a jelszó hash-ét tárolja.",
+          "username": "A felhasználónév vagy e-mail-cím, amellyel az SBM Fizikus alkalmazásba bejelentkezel."
+        },
+        "description": "Jelentkezz be az SBM Fizikus-fiókoddal. Ha a fiókhoz több lakás tartozik, a következő lépésben választhatsz közülük. Egy másik lakáshoz add hozzá újra az integrációt.",
+        "title": "Csatlakozás az SBM Fizikushoz"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "system_mode": {
+        "state": {
+          "cooling": "Hűtés",
+          "heating": "Fűtés",
+          "idle": "Tétlen",
+          "off": "Kikapcsolva"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "Az SBM elutasította a bejelentkezést. Add meg újra a fiók jelszavát."
+    },
+    "building_not_found": {
+      "message": "Az SBM nem listázza a lakás ({apartment_id}) épületét, ezért a külső hőmérséklet és páratartalom nem érhető el."
+    },
+    "invalid_temperature": {
+      "message": "A célhőmérsékletnek véges számnak kell lennie. NaN és végtelen érték nem adható meg."
+    },
+    "set_temperature_failed": {
+      "message": "Nem sikerült beállítani a célhőmérsékletet: {error}"
+    },
+    "switch_system_failed": {
+      "message": "Nem sikerült be- vagy kikapcsolni az SBM Fizikus rendszert: {error}"
+    },
+    "update_failed": {
+      "message": "Nem sikerült lekérni az adatokat az SBM-től: {error}"
+    }
+  }
+}
