@@ -72,7 +72,8 @@ class SbmFizikusConfigFlow(ConfigFlow, domain=DOMAIN):
                 apartments = await client.async_get_all_apartments()
             except SbmAuthError:
                 errors["base"] = "invalid_auth"
-            except SbmError:
+            except SbmError as err:
+                _LOGGER.warning("Setting up SBM Fizikus failed: %s", err)
                 errors["base"] = "cannot_connect"
             except Exception:
                 _LOGGER.exception("Unexpected error while setting up SBM Fizikus")
@@ -167,7 +168,8 @@ class SbmFizikusConfigFlow(ConfigFlow, domain=DOMAIN):
                 await client.async_get_apartment_data(entry.data[CONF_APARTMENT_ID])
             except SbmAuthError:
                 errors["base"] = "invalid_auth"
-            except SbmError:
+            except SbmError as err:
+                _LOGGER.warning("Reauthenticating SBM Fizikus failed: %s", err)
                 errors["base"] = "cannot_connect"
             except Exception:
                 _LOGGER.exception("Unexpected error while reauthenticating SBM Fizikus")

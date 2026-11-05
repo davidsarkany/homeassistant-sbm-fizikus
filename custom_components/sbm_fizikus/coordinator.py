@@ -61,6 +61,11 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         data = await _async_fetch(
             self.client.async_get_apartment_data(self.apartment_id)
         )
+        LOGGER.debug("Parsed state of apartment %s: %s", self.apartment_id, data)
+        if not self.last_update_success:
+            # A warning, as the base class logs the recovery only as an info message,
+            # which Home Assistant hides by default, unlike the failure.
+            LOGGER.warning("SBM can be reached again")
         self._log_connection_change(data)
         return data
 
@@ -70,7 +75,7 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
             return
         self._connected = data.connected
         if data.connected:
-            LOGGER.info(
+            LOGGER.warning(
                 "SBM reaches the relay module and the thermostats again, "
                 "the entities are available"
             )
@@ -121,7 +126,11 @@ class SbmFizikusOutdoorCoordinator(DataUpdateCoordinator[SbmBuilding]):
         }
         if self._building_id not in buildings:
             self._building_id = await self._async_find_building_id(buildings)
-        return buildings[self._building_id]
+        building = buildings[self._building_id]
+        LOGGER.debug("Parsed outdoor weather: %s", building)
+        if not self.last_update_success:
+            LOGGER.warning("The outdoor weather can be fetched from SBM again")
+        return building
 
     async def _async_find_building_id(
         self, buildings: Mapping[int, SbmBuilding]

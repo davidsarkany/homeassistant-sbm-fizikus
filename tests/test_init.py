@@ -55,6 +55,43 @@ async def test_setup_and_unload(
     assert config_entry.state is ConfigEntryState.NOT_LOADED
 
 
+async def test_setup_logs_why_sbm_cannot_be_reached(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An outage at startup is logged once, and so is its end, for every retry."""
+
+    def warnings(text: str) -> int:
+        return sum(
+            record.levelname == "WARNING" and text in record.getMessage()
+            for record in caplog.records
+        )
+
+    unreachable = "SBM cannot be reached, retrying in the background"
+    sbm.queue("get_apartment_data", exc=TimeoutError())
+    sbm.queue("get_apartment_data", exc=TimeoutError())
+
+    await setup_integration(hass, config_entry)
+    await hass.config_entries.async_reload(config_entry.entry_id)
+
+    assert config_entry.state is ConfigEntryState.SETUP_RETRY
+    assert warnings(unreachable) == 1
+    assert warnings("SBM did not answer get_apartment_data in time") == 1
+    assert warnings("SBM can be reached again") == 0
+
+    await hass.config_entries.async_reload(config_entry.entry_id)
+
+    assert config_entry.state is ConfigEntryState.LOADED
+    assert warnings(unreachable) == 1
+    assert warnings("SBM can be reached again") == 1
+
+    await hass.config_entries.async_reload(config_entry.entry_id)
+
+    assert warnings("SBM can be reached again") == 1
+
+
 @pytest.mark.parametrize(
     ("operation", "answer", "state"),
     [

@@ -1,6 +1,6 @@
 # SBM Fizikus Home Assistant integration: design
 
-This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.1.
+This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.2.
 
 The reference implementation of the SBM API is the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge. Paths starting with `src/` refer to that repository.
 
@@ -164,7 +164,10 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - All thermostat entities are unavailable when the last poll failed, when `communicationActiveThermostats` is false, or when `communicationActiveRelayModule` is false while the system is switched on (the bridge's `IsConnected`, except for a switched-off system).
 - A thermostat missing from the latest answer makes its entities unavailable. Thermostats added later get their entities at the next poll (quality rule `dynamic-devices`): each platform keeps the ids it has added entities for, in `SbmFizikusData.known_thermostats`. Deleting a stale thermostat device forgets its id, so it gets entities again if SBM reports it later.
 - `async_remove_config_entry_device` allows deleting a thermostat device that is no longer in the latest answer, and refuses present thermostats and the apartment device (quality rule `stale-devices`). While the entry is not loaded (for example while setup retries) there is no answer to check against, so it refuses every device.
-- Failed polls and the recovery are logged once by the coordinator. It also logs a warning once when SBM stops reaching the system, and an info message once when it reaches it again (quality rule `log-when-unavailable`).
+- Failed polls are logged once by the coordinator as an error, and the recovery once as a warning. It also logs a warning once when SBM stops reaching the system, and once when it reaches it again (quality rule `log-when-unavailable`). The recoveries are warnings because Home Assistant hides info messages by default, so the log would show only the start of an outage; the info message of the base class stays.
+- When SBM cannot be reached while the entry is set up, for example at startup, a warning with the cause is logged once, and another one when a retry succeeds. Home Assistant logs this only as an info message. Every retry has a new coordinator, so the entries with a logged outage are kept in `hass.data`.
+- The config flow logs a warning with the cause when SBM cannot be reached while adding the integration or during a reauthentication, as the form shows only the kind of the error.
+- The debug log shows every request with its answer, status and duration, the parsed state of every poll, and the cause of every failed call. That also covers the errors of the config flow, which the form shows only by kind, and the repeated failures of a poll, which the coordinator logs only once. The username, the password hash and the token are replaced in the requests. The answers to the login and to `get_building_access_rights` are left out, because they hold the token and the address of the building; the parsed outdoor values are logged instead.
 
 ### Diagnostics
 

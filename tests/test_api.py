@@ -1,6 +1,7 @@
 """Tests of the SBM API client."""
 
 import asyncio
+import logging
 from typing import Any
 
 import aiohttp
@@ -82,6 +83,55 @@ async def test_request_bodies_match_the_bridge(
         assert method.upper() == "PUT"
         assert str(url) == SBM_URL
         assert headers == {"Content-Type": "application/json; charset=utf-8"}
+
+
+async def test_debug_log_shows_the_calls_without_secrets(
+    client: SbmClient, sbm: SbmStub, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.sbm_fizikus")
+    sbm.queue(LOGIN, json_body=token("secret-jwt"))
+
+    await client.async_get_all_apartments()
+    await client.async_get_apartment_data(APARTMENT_ID)
+    await client.async_set_target_temperature(LIVING_ROOM_ID, 21.5)
+    await client.async_set_system_off(APARTMENT_ID, system_off=True)
+
+    for secret in (USERNAME, PWHASH, "secret-jwt", "Teszt utca"):
+        assert secret not in caplog.text
+    assert f"SBM request get_apartment_data: {{'apartment_id': {APARTMENT_ID}" in (
+        caplog.text
+    )
+    assert "SBM answer to get_apartment_data, status 200" in caplog.text
+    assert "living-room" in caplog.text
+    assert "'temp_setpoint_degC': 21.5" in caplog.text
+    assert "'disabled': True" in caplog.text
+
+
+async def test_debug_log_shows_why_a_call_failed(
+    client: SbmClient, sbm: SbmStub, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.sbm_fizikus")
+    sbm.queue(LOGIN, json_body=token("jwt"))
+    sbm.queue(DATA, status=503, text="try later")
+
+    with pytest.raises(SbmApiError):
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert "SBM call failed: SBM request get_apartment_data failed" in caplog.text
+    assert "503 (Service Unavailable): try later" in caplog.text
+
+
+async def test_debug_log_hides_the_answer_to_a_failed_login(
+    client: SbmClient, sbm: SbmStub, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.sbm_fizikus")
+    sbm.queue(LOGIN, status=500, text="secret-answer")
+
+    with pytest.raises(SbmApiError):
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert "SBM call failed: SBM request get_jw_token failed" in caplog.text
+    assert "secret-answer" not in caplog.text
 
 
 @pytest.mark.parametrize("system_off", [True, False])

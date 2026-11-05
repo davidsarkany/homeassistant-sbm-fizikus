@@ -320,6 +320,42 @@ async def test_reauth_flow_error_and_recovery(
     assert result["reason"] == "reauth_successful"
 
 
+async def test_user_flow_logs_why_sbm_cannot_be_reached(
+    hass: HomeAssistant, sbm: SbmStub, caplog: pytest.LogCaptureFixture
+) -> None:
+    sbm.queue("get_jw_token", exc=TimeoutError())
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+
+    await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert (
+        "WARNING",
+        "Setting up SBM Fizikus failed: SBM did not answer get_jw_token in time",
+    ) in [(record.levelname, record.getMessage()) for record in caplog.records]
+
+
+async def test_reauth_flow_logs_why_sbm_cannot_be_reached(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config_entry.add_to_hass(hass)
+    sbm.queue("get_jw_token", exc=TimeoutError())
+    result = await config_entry.start_reauth_flow(hass)
+
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+    )
+
+    assert (
+        "WARNING",
+        "Reauthenticating SBM Fizikus failed: SBM did not answer get_jw_token in time",
+    ) in [(record.levelname, record.getMessage()) for record in caplog.records]
+
+
 async def test_reauth_updates_the_other_apartments_of_the_account(
     hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
 ) -> None:
