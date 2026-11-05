@@ -2,7 +2,9 @@
 
 It mirrors SbmClient and SbmSession of the sbm-fizikus-to-mqtt bridge and does not
 depend on Home Assistant. Error messages never contain a request payload, which holds
-the token, or the answer to a login, which holds the token too.
+the token, or the answer to a login, which holds the token too. The debug log shows the
+requests without the credentials and the token, and the answers except the ones in
+_ANSWERS_NOT_LOGGED.
 """
 
 import asyncio
@@ -15,6 +17,7 @@ from http import HTTPStatus
 import json
 import logging
 import math
+import time
 from typing import Any, Final, TypeIs
 
 import aiohttp
@@ -32,6 +35,9 @@ _REQUEST_TIMEOUT: Final = aiohttp.ClientTimeout(total=30)
 _TOKEN_REFRESH_MARGIN: Final = timedelta(seconds=30)
 _MAX_ERROR_BODY_LENGTH: Final = 300
 _REDACTED: Final = "<redacted>"
+_SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_email"})
+# The answer to a login holds the token, the list of buildings holds their addresses.
+_ANSWERS_NOT_LOGGED: Final = frozenset({"get_jw_token", "get_building_access_rights"})
 # What SBM reports for an outdoor value it does not know.
 _UNKNOWN_OUTDOOR_VALUE: Final = -1.0
 
@@ -208,6 +214,20 @@ class SbmClient:
         )
 
     async def _async_call[T](self, operation: Callable[[str], Awaitable[T]]) -> T:
+        """Run an operation, and log why it failed.
+
+        The coordinators log a failing poll only once, and the config flow shows only
+        the kind of the error, so this is where the debug log gets every cause.
+        """
+        try:
+            return await self._async_call_with_token(operation)
+        except SbmError as err:
+            _LOGGER.debug("SBM call failed: %s", err)
+            raise
+
+    async def _async_call_with_token[T](
+        self, operation: Callable[[str], Awaitable[T]]
+    ) -> T:
         """Run an operation with a token, and once more after a rejected token."""
         token = await self._async_get_token()
         try:
@@ -366,6 +386,8 @@ class SbmClient:
             separators=(",", ":"),
             allow_nan=False,
         )
+        _LOGGER.debug("SBM request %s: %s", operation, _loggable_payload(payload))
+        started = time.monotonic()
         try:
             async with self._session.put(
                 self._url,
@@ -384,6 +406,13 @@ class SbmClient:
                 f"SBM returned an undecodable response to {operation}"
             ) from err
 
+        _LOGGER.debug(
+            "SBM answer to %s, status %s in %.3f s: %s",
+            operation,
+            status,
+            time.monotonic() - started,
+            _REDACTED if operation in _ANSWERS_NOT_LOGGED else text,
+        )
         shown = _REDACTED if redact_response else _truncate(text)
         if not HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES:
             raise SbmApiError(
@@ -570,6 +599,14 @@ def _describe_status(status: int) -> str:
         return f"{status} ({HTTPStatus(status).phrase})"
     except ValueError:
         return str(status)
+
+
+def _loggable_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a request payload without the credentials and the token."""
+    return {
+        key: _REDACTED if key in _SECRET_PAYLOAD_KEYS else value
+        for key, value in payload.items()
+    }
 
 
 def _truncate(text: str) -> str:

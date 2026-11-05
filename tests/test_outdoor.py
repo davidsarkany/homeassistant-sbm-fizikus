@@ -321,10 +321,13 @@ async def test_failed_poll_and_recovery(
         "SBM request get_building_access_rights failed with status 500 "
         "(Internal Server Error): Internal error"
     ) in caplog.text
+    recovered = "The outdoor weather can be fetched from SBM again"
+    assert recovered not in caplog.text
 
     await refresh(config_entry)
 
     assert hass.states.get(OUTDOOR_TEMPERATURE).state == "19.9"
+    assert caplog.text.count(recovered) == 1
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")

@@ -3,8 +3,10 @@
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util.hass_dict import HassKey
 
 from .api import SbmClient
 from .const import (
@@ -12,6 +14,7 @@ from .const import (
     APARTMENT_MODEL,
     CONF_PWHASH,
     DOMAIN,
+    LOGGER,
     MANUFACTURER,
     PLATFORMS,
     apartment_device_identifier,
@@ -24,6 +27,8 @@ from .coordinator import (
     SbmFizikusOutdoorCoordinator,
 )
 
+_UNREACHABLE_AT_SETUP: HassKey[set[str]] = HassKey(f"{DOMAIN}_unreachable_at_setup")
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: SbmFizikusConfigEntry) -> None:
     """Set up SBM Fizikus from a config entry."""
@@ -33,7 +38,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SbmFizikusConfigEntry) -
         entry.data[CONF_PWHASH],
     )
     coordinator = SbmFizikusCoordinator(hass, entry, client)
-    await coordinator.async_config_entry_first_refresh()
+    # Home Assistant logs a failed setup only as an info message, which it hides by
+    # default. The setup is retried with a new coordinator, so the entries that have
+    # been logged are kept here, to log an outage only once.
+    unreachable = hass.data.setdefault(_UNREACHABLE_AT_SETUP, set())
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryNotReady as err:
+        if entry.entry_id not in unreachable:
+            unreachable.add(entry.entry_id)
+            LOGGER.warning("SBM cannot be reached, retrying in the background: %s", err)
+        raise
+    if entry.entry_id in unreachable:
+        unreachable.remove(entry.entry_id)
+        LOGGER.warning("SBM can be reached again")
 
     # The thermostats link to the apartment with its device id, so it must exist
     # before their entities are added.

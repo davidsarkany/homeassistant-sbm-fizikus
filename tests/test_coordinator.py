@@ -1,6 +1,7 @@
 """Tests of the polling of SBM Fizikus."""
 
 from datetime import timedelta
+import logging
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -18,6 +19,15 @@ LIVING_ROOM = "climate.living_room"
 BEDROOM = "climate.bedroom"
 DISCONNECTED = "SBM does not reach the relay module or the thermostats"
 RECONNECTED = "SBM reaches the relay module and the thermostats again"
+
+
+def warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return the messages that Home Assistant shows at its default log level."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    ]
 
 
 async def refresh(config_entry: MockConfigEntry) -> None:
@@ -47,6 +57,20 @@ async def test_polls_every_two_minutes(
     assert sbm.operations.count("get_jw_token") == 1
 
 
+async def test_debug_log_shows_the_parsed_state(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.sbm_fizikus")
+
+    await setup_integration(hass, config_entry)
+
+    assert "Parsed state of apartment 123: SbmApartmentData(" in caplog.text
+    assert "target_temperature=23.0" in caplog.text
+
+
 async def test_failed_poll_and_recovery(
     hass: HomeAssistant,
     sbm: SbmStub,
@@ -72,6 +96,11 @@ async def test_failed_poll_and_recovery(
 
     assert hass.states.get(LIVING_ROOM).state == "heat"
     assert caplog.text.count("Fetching sbm_fizikus data recovered") == 1
+    assert warnings(caplog).count("SBM can be reached again") == 1
+
+    await refresh(config_entry)
+
+    assert warnings(caplog).count("SBM can be reached again") == 1
 
 
 @pytest.mark.parametrize("status", [400, 404, 405, 408, 429, 503])
@@ -150,6 +179,7 @@ async def test_disconnected_system(
     assert hass.states.get(LIVING_ROOM).state == "heat"
     assert caplog.text.count(DISCONNECTED) == 1
     assert caplog.text.count(RECONNECTED) == 1
+    assert any(RECONNECTED in message for message in warnings(caplog))
 
 
 async def test_disconnected_at_setup(

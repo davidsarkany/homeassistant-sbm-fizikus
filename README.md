@@ -123,7 +123,7 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
 ## Hibaelhárítás
 
 - **Hibás felhasználónév vagy jelszó**: ellenőrzésként jelentkezz be ugyanazzal a felhasználónévvel és jelszóval az SBM Fizikus alkalmazásba.
-- **Az entitások nem elérhetők**: nézd meg az SBM Fizikus alkalmazásban, hogy a rendszer online-e. A Home Assistant naplója jelzi, ha az SBM nem volt elérhető, és ha az SBM a relémodult vagy a termosztátokat leválasztottnak jelenti.
+- **Az entitások nem elérhetők**: nézd meg az SBM Fizikus alkalmazásban, hogy a rendszer online-e. A Home Assistant naplója jelzi, ha az SBM nem volt elérhető, és ha az SBM a relémodult vagy a termosztátokat leválasztottnak jelenti, valamint azt is, amikor ezek a problémák megszűnnek.
 - **Diagnosztika**: az integráció oldalán a bejegyzés menüjében van a **Diagnosztika letöltése**. Az SBM legutóbbi válaszát tartalmazza, a felhasználónév és a jelszó hash-e nélkül. Csatold a hibajelentésekhez.
 - **Hibakeresési naplók**: kapcsold be a **Hibakeresési naplózás engedélyezése** opciót az integráció oldalán, vagy add hozzá ezt a `configuration.yaml` fájlhoz:
 
@@ -132,6 +132,8 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
     logs:
       custom_components.sbm_fizikus: debug
   ```
+
+  A napló ekkor az SBM-nek küldött összes kérést mutatja a válasszal, az állapotkóddal és az időtartammal együtt, továbbá a feldolgozott állapotot és minden sikertelen hívás okát. A felhasználónév, a jelszó hash-e, a token és az épület címe nem kerül bele, a lakás és a termosztátok neve viszont igen.
 
 Az a termosztát, amelyet az SBM már nem jelent, az eszközoldalán törölhető.
 

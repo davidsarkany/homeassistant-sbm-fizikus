@@ -121,7 +121,7 @@ The names of all entities stay in English in every language, because Home Assist
 ## Troubleshooting
 
 - **Invalid username or password**: sign in to the SBM Fizikus app with the same username and password to check them.
-- **Entities are unavailable**: check in the SBM Fizikus app whether the system is online. The log of Home Assistant says when SBM could not be reached, and when SBM reports the relay module or the thermostats as disconnected.
+- **Entities are unavailable**: check in the SBM Fizikus app whether the system is online. The log of Home Assistant says when SBM could not be reached, and when SBM reports the relay module or the thermostats as disconnected, and also when these problems end.
 - **Diagnostics**: on the page of the integration, the menu of the entry has **Download diagnostics**. It contains the latest answer of SBM, with the username and the password hash removed. Add it to bug reports.
 - **Debug logs**: enable **Debug logging** on the page of the integration, or add this to `configuration.yaml`:
 
@@ -130,6 +130,8 @@ The names of all entities stay in English in every language, because Home Assist
     logs:
       custom_components.sbm_fizikus: debug
   ```
+
+  The log then shows every request to SBM with its answer, status and duration, the parsed state, and the cause of every failed call. The username, the password hash, the token and the address of the building stay out of it, but the names of the apartment and the thermostats are included.
 
 A thermostat that SBM no longer reports can be deleted on its device page.
 
