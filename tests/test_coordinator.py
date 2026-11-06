@@ -17,8 +17,9 @@ from .conftest import SbmStub, setup_integration
 
 LIVING_ROOM = "climate.living_room"
 BEDROOM = "climate.bedroom"
-DISCONNECTED = "SBM does not reach the relay module or the thermostats"
-RECONNECTED = "SBM reaches the relay module and the thermostats again"
+THERMOSTATS_FLAG = "communicationActiveThermostats"
+DISCONNECTED = "SBM does not reach the thermostats, the entities are unavailable"
+RECONNECTED = "SBM reaches the thermostats again, the entities are available"
 
 
 def warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -150,20 +151,16 @@ async def test_refused_login_starts_reauth(
     assert [flow["context"]["source"] for flow in flows] == [SOURCE_REAUTH]
 
 
-@pytest.mark.parametrize(
-    "flag", ["communicationActiveRelayModule", "communicationActiveThermostats"]
-)
 async def test_disconnected_system(
     hass: HomeAssistant,
     sbm: SbmStub,
     config_entry: MockConfigEntry,
     caplog: pytest.LogCaptureFixture,
-    flag: str,
 ) -> None:
-    """Entities are unavailable while SBM does not reach the system."""
+    """Entities are unavailable while SBM does not reach the thermostats."""
     await setup_integration(hass, config_entry)
 
-    sbm.apartment_data[flag] = False
+    sbm.apartment_data[THERMOSTATS_FLAG] = False
     await refresh(config_entry)
     await refresh(config_entry)
 
@@ -172,7 +169,7 @@ async def test_disconnected_system(
     assert caplog.text.count(DISCONNECTED) == 1
     assert RECONNECTED not in caplog.text
 
-    sbm.apartment_data[flag] = True
+    sbm.apartment_data[THERMOSTATS_FLAG] = True
     await refresh(config_entry)
     await refresh(config_entry)
 
@@ -182,13 +179,29 @@ async def test_disconnected_system(
     assert any(RECONNECTED in message for message in warnings(caplog))
 
 
+async def test_relay_module_flag_is_ignored(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Like the app, only the flag of the thermostats counts as the connection."""
+    await setup_integration(hass, config_entry)
+
+    sbm.apartment_data["communicationActiveRelayModule"] = False
+    await refresh(config_entry)
+
+    assert hass.states.get(LIVING_ROOM).state == "heat"
+    assert DISCONNECTED not in caplog.text
+
+
 async def test_disconnected_at_setup(
     hass: HomeAssistant,
     sbm: SbmStub,
     config_entry: MockConfigEntry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    sbm.apartment_data["communicationActiveRelayModule"] = False
+    sbm.apartment_data[THERMOSTATS_FLAG] = False
 
     await setup_integration(hass, config_entry)
 

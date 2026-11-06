@@ -69,7 +69,7 @@ A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület 
 - A **célhőmérséklet** 5 és 35 °C között állítható. Az SBM 0,1 °C felbontással tárolja: a kártya 0,5 °C-os lépésekben állít, más értékeket (például egy automatizálásból) 0,1 °C-ra kerekít.
 - A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, ahogy a hídnál sem; így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
 - A **külső szenzorokhoz** egy további kérés kell az SBM felé, ezért az integráció csak akkor kérdezi le a külső időjárást, ha legalább az egyik engedélyezve van. Az engedélyezés után kb. 30 másodperccel az integráció újratöltődik. Nem függenek a termosztátoktól: elérhetők maradnak, ha az SBM a termosztátokat leválasztottnak jelenti, és a termosztátok is elérhetők maradnak, ha a külső időjárást nem sikerül lekérni.
-- Az entitások **nem elérhetők**, ha az SBM nem érhető el, ha az SBM a termosztátokat vagy egy bekapcsolt rendszer relémodulját leválasztottnak jelenti, vagy ha egy termosztát hiányzik az SBM válaszából. A kikapcsolt rendszer nem jelenti a relémodulját, ezért az entitásai elérhetők maradnak.
+- Az entitások **nem elérhetők**, ha az SBM nem érhető el, ha az SBM a termosztátokat leválasztottnak jelenti (ezt mutatja az alkalmazás kapcsolatjelzője is), vagy ha egy termosztát hiányzik az SBM válaszából.
 
 ## Az adatok frissítése
 
@@ -123,7 +123,7 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
 ## Hibaelhárítás
 
 - **Hibás felhasználónév vagy jelszó**: ellenőrzésként jelentkezz be ugyanazzal a felhasználónévvel és jelszóval az SBM Fizikus alkalmazásba.
-- **Az entitások nem elérhetők**: nézd meg az SBM Fizikus alkalmazásban, hogy a rendszer online-e. A Home Assistant naplója jelzi, ha az SBM nem volt elérhető, és ha az SBM a relémodult vagy a termosztátokat leválasztottnak jelenti, valamint azt is, amikor ezek a problémák megszűnnek.
+- **Az entitások nem elérhetők**: nézd meg az SBM Fizikus alkalmazásban, hogy a rendszer online-e. A Home Assistant naplója jelzi, ha az SBM nem volt elérhető, és ha az SBM a termosztátokat leválasztottnak jelenti, valamint azt is, amikor ezek a problémák megszűnnek.
 - **Diagnosztika**: az integráció oldalán a bejegyzés menüjében van a **Diagnosztika letöltése**. Az SBM legutóbbi válaszát tartalmazza, a felhasználónév és a jelszó hash-e nélkül. Csatold a hibajelentésekhez.
 - **Hibakeresési naplók**: kapcsold be a **Hibakeresési naplózás engedélyezése** opciót az integráció oldalán, vagy add hozzá ezt a `configuration.yaml` fájlhoz:
 

@@ -509,8 +509,6 @@ async def test_apartment_data(client: SbmClient) -> None:
     data = await client.async_get_apartment_data(APARTMENT_ID)
 
     assert data.operation_mode == 0
-    assert data.relay_module_connected
-    assert data.thermostats_connected
     assert data.connected
     assert list(data.thermostats) == [1001, 1002, 1003, 1004]
     assert data.thermostats[LIVING_ROOM_ID] == SbmThermostat(
@@ -539,50 +537,44 @@ async def test_firmware_version_that_is_missing_or_invalid(
 
 
 @pytest.mark.parametrize(
-    ("disabled", "relay_module", "thermostats", "system_off", "connected"),
+    ("disabled", "thermostats", "system_off"),
     [
-        # A switched-off system does not report its relay module.
-        (True, False, True, True, True),
-        (True, True, True, True, True),
-        (True, False, False, True, False),
-        (False, False, True, False, False),
-        (None, False, True, False, False),
-        ("yes", False, True, False, False),
+        (True, True, True),
+        (True, False, True),
+        (False, True, False),
+        (None, True, False),
+        ("yes", True, False),
     ],
 )
 async def test_switched_off_system(
     client: SbmClient,
     sbm: SbmStub,
     disabled: Any,
-    relay_module: bool,
     thermostats: bool,
     system_off: bool,
-    connected: bool,
 ) -> None:
     sbm.apartment_data["disabled"] = disabled
-    sbm.apartment_data["communicationActiveRelayModule"] = relay_module
+    # A switched-off system does not report its relay module.
+    sbm.apartment_data["communicationActiveRelayModule"] = False
     sbm.apartment_data["communicationActiveThermostats"] = thermostats
 
     data = await client.async_get_apartment_data(APARTMENT_ID)
 
     assert data.system_off is system_off
-    assert data.connected is connected
+    assert data.connected is thermostats
 
 
 @pytest.mark.parametrize(
-    ("disabled", "command", "relay_module", "system_off", "connected"),
+    ("disabled", "command", "system_off"),
     [
-        # Switching off, not confirmed yet: the relay module still reports.
-        (False, True, True, True, True),
-        # Switching on, not confirmed yet: the relay module does not report yet,
-        # which is no lost connection.
-        (True, False, False, False, True),
-        # Switching on is pending, but the relay module is lost while the
-        # confirmed state is on.
-        (False, False, False, False, False),
+        # Switching off, not confirmed yet.
+        (False, True, True),
+        # Switching on, not confirmed yet.
+        (True, False, False),
+        (False, False, False),
         # No pending switching, or a value that is not one.
-        (True, None, False, True, True),
-        (False, "yes", True, False, True),
+        (True, None, True),
+        (False, "yes", False),
     ],
 )
 async def test_pending_switching(
@@ -590,20 +582,15 @@ async def test_pending_switching(
     sbm: SbmStub,
     disabled: bool,
     command: Any,
-    relay_module: bool,
     system_off: bool,
-    connected: bool,
 ) -> None:
-    """A pending switching is shown, like the app; the connection uses `disabled`."""
+    """A pending switching is shown, like the app."""
     sbm.apartment_data["disabled"] = disabled
     sbm.apartment_data["disabledCommand"] = command
-    sbm.apartment_data["communicationActiveRelayModule"] = relay_module
 
     data = await client.async_get_apartment_data(APARTMENT_ID)
 
     assert data.system_off is system_off
-    assert data.system_off_confirmed is disabled
-    assert data.connected is connected
 
 
 @pytest.mark.parametrize(
@@ -659,17 +646,19 @@ async def test_humidity_is_a_whole_number(
     assert type(value) is int
 
 
-@pytest.mark.parametrize(
-    ("relay_module", "thermostats"), [(False, True), (True, False), (False, False)]
-)
-async def test_apartment_data_disconnected(
-    client: SbmClient, sbm: SbmStub, relay_module: bool, thermostats: bool
+@pytest.mark.parametrize("relay_module", [True, False, None])
+async def test_apartment_data_connection_ignores_the_relay_module(
+    client: SbmClient, sbm: SbmStub, relay_module: Any
 ) -> None:
+    """Like the app, only the flag of the thermostats counts as the connection."""
     sbm.apartment_data["communicationActiveRelayModule"] = relay_module
-    sbm.apartment_data["communicationActiveThermostats"] = thermostats
 
     data = await client.async_get_apartment_data(APARTMENT_ID)
+    assert data.connected
 
+    sbm.apartment_data["communicationActiveThermostats"] = False
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
     assert not data.connected
 
 
@@ -680,7 +669,7 @@ async def test_thermostat_values_that_are_missing_or_invalid(
     sbm.queue(
         DATA,
         text=(
-            '{"operationMode": 1, "communicationActiveRelayModule": true,'
+            '{"operationMode": 1,'
             ' "communicationActiveThermostats": true, "thermostats": ['
             '{"ID": 1},'
             '{"ID": 2, "name": " ", "active": null, "measuredTempDegC": NaN,'
@@ -714,7 +703,6 @@ async def test_thermostat_values_that_are_missing_or_invalid(
         {"operationMode": None},
         {"operationMode": "0"},
         {"operationMode": False},
-        {"communicationActiveRelayModule": 1},
         {"communicationActiveThermostats": None},
         {"thermostats": None},
         {"thermostats": {"1001": {}}},
@@ -798,20 +786,16 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
     """The coordinator only notifies entities when the parsed data changed."""
     first = SbmApartmentData(
         operation_mode=0,
-        relay_module_connected=True,
-        thermostats_connected=True,
+        connected=True,
         system_off=False,
-        system_off_confirmed=False,
         thermostats={},
         firmware_version=None,
         raw={"lastStateUpdate": "2026-10-10 12:45:11.578277"},
     )
     second = SbmApartmentData(
         operation_mode=0,
-        relay_module_connected=True,
-        thermostats_connected=True,
+        connected=True,
         system_off=False,
-        system_off_confirmed=False,
         thermostats={},
         firmware_version=None,
         raw={"lastStateUpdate": "2026-10-10 12:47:11.578277"},

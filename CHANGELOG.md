@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 (2026-11-07)
+
+- Changed: the entities no longer become unavailable when SBM reports the relay module as disconnected. Like the SBM Fizikus app, the integration now uses only the connection of the thermostats, so a real failure of the relay module does not show in Home Assistant.
+- The log says when SBM reports the thermostats as disconnected, and when they are back.
+
 ## 0.1.2 (2026-11-05)
 
 - More detailed debug logs: every request to SBM with its answer, status and duration, the parsed state, and the cause of every failed call. The username, the password hash, the token and the address of the building stay out of the log.

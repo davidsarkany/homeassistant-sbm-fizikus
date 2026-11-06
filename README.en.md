@@ -67,7 +67,7 @@ The **SBM Fizikus** device of the apartment has the switch of the system, and th
 - The **target temperature** can be set between 5 and 35 °C. SBM keeps it with 0.1 °C resolution: the card steps by 0.5 °C, and other values (for example from an automation) are rounded to 0.1 °C.
 - **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, like with the bridge, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
 - The **outdoor sensors** need an extra request to SBM, so SBM is asked for the outdoor weather only while at least one of them is enabled. Enabling one reloads the integration after about 30 seconds. They do not depend on the thermostats: they stay available when SBM reports the thermostats as disconnected, and the thermostats stay available when the outdoor weather cannot be fetched.
-- The entities are **unavailable** when SBM cannot be reached, when SBM reports the thermostats as disconnected or the relay module of a system that is switched on, or when a thermostat is missing from the answer of SBM. A switched-off system does not report its relay module, so its entities stay available.
+- The entities are **unavailable** when SBM cannot be reached, when SBM reports the thermostats as disconnected, like the connection indicator of the app, or when a thermostat is missing from the answer of SBM.
 
 ## How the data is updated
 
@@ -121,7 +121,7 @@ The names of all entities stay in English in every language, because Home Assist
 ## Troubleshooting
 
 - **Invalid username or password**: sign in to the SBM Fizikus app with the same username and password to check them.
-- **Entities are unavailable**: check in the SBM Fizikus app whether the system is online. The log of Home Assistant says when SBM could not be reached, and when SBM reports the relay module or the thermostats as disconnected, and also when these problems end.
+- **Entities are unavailable**: check in the SBM Fizikus app whether the system is online. The log of Home Assistant says when SBM could not be reached, and when SBM reports the thermostats as disconnected, and also when these problems end.
 - **Diagnostics**: on the page of the integration, the menu of the entry has **Download diagnostics**. It contains the latest answer of SBM, with the username and the password hash removed. Add it to bug reports.
 - **Debug logs**: enable **Debug logging** on the page of the integration, or add this to `configuration.yaml`:
 

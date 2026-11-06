@@ -70,18 +70,17 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         return data
 
     def _log_connection_change(self, data: SbmApartmentData) -> None:
-        """Log once when SBM loses the relay module or thermostats, once when back."""
+        """Log once when SBM loses the thermostats, and once when they are back."""
         if data.connected == self._connected:
             return
         self._connected = data.connected
         if data.connected:
             LOGGER.warning(
-                "SBM reaches the relay module and the thermostats again, "
-                "the entities are available"
+                "SBM reaches the thermostats again, the entities are available"
             )
         else:
             LOGGER.warning(
-                "SBM does not reach the relay module or the thermostats, "
+                "SBM does not reach the thermostats, "
                 "the entities are unavailable until it does again"
             )
 
