@@ -118,33 +118,17 @@ class SbmApartmentData:
     """The state of an apartment and its thermostats."""
 
     operation_mode: int
-    relay_module_connected: bool
-    thermostats_connected: bool
+    # SBM reaches the thermostats, the connection indicator of the app.
+    connected: bool
     # The system is switched off in SBM, or a switching off that the device has not
     # confirmed yet is pending (`disabledCommand`, else `disabled`), like the app
     # shows it.
     system_off: bool
-    # Only what the device confirmed (`disabled`). A system that has been off for a
-    # while does not report its relay module.
-    system_off_confirmed: bool
     thermostats: Mapping[int, SbmThermostat]
     # The firmware of the SBM Fizikus device of the apartment, None when not reported.
     firmware_version: str | None
     # The decoded answer of SBM, for diagnostics.
     raw: Mapping[str, Any] = field(compare=False, repr=False)
-
-    @property
-    def connected(self) -> bool:
-        """Return whether SBM reaches the system.
-
-        That is the thermostats, and the relay module unless the system is switched
-        off: a switched-off system does not report its relay module. Only the
-        confirmed state counts, as the relay module of a system that is being
-        switched on reports only after the device confirmed it.
-        """
-        return self.thermostats_connected and (
-            self.relay_module_connected or self.system_off_confirmed
-        )
 
 
 class SbmClient:
@@ -467,13 +451,11 @@ def _parse_apartment_data(response: Any) -> SbmApartmentData:
             "SBM returned an invalid response to get_apartment_data"
         )
     operation_mode = response.get("operationMode")
-    relay_module_connected = response.get("communicationActiveRelayModule")
-    thermostats_connected = response.get("communicationActiveThermostats")
+    connected = response.get("communicationActiveThermostats")
     thermostats = response.get("thermostats")
     if not (
         _is_int(operation_mode)
-        and isinstance(relay_module_connected, bool)
-        and isinstance(thermostats_connected, bool)
+        and isinstance(connected, bool)
         and isinstance(thermostats, list)
         and all(
             isinstance(thermostat, dict) and _is_int(thermostat.get("ID"))
@@ -483,15 +465,14 @@ def _parse_apartment_data(response: Any) -> SbmApartmentData:
         raise SbmInvalidResponseError(
             "SBM returned an invalid response to get_apartment_data"
         )
-    system_off_confirmed = response.get("disabled") is True
     # A switching that the device has not confirmed yet.
     pending = response.get("disabledCommand")
     return SbmApartmentData(
         operation_mode=operation_mode,
-        relay_module_connected=relay_module_connected,
-        thermostats_connected=thermostats_connected,
-        system_off=pending if isinstance(pending, bool) else system_off_confirmed,
-        system_off_confirmed=system_off_confirmed,
+        connected=connected,
+        system_off=(
+            pending if isinstance(pending, bool) else response.get("disabled") is True
+        ),
         thermostats={
             thermostat["ID"]: _parse_thermostat(thermostat)
             for thermostat in thermostats

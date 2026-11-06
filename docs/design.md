@@ -1,6 +1,6 @@
 # SBM Fizikus Home Assistant integration: design
 
-This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.2.
+This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.3.
 
 The reference implementation of the SBM API is the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge. Paths starting with `src/` refer to that repository.
 
@@ -45,7 +45,7 @@ All calls are `PUT https://ps9et7hsp3.execute-api.eu-central-1.amazonaws.com/fro
 | `get_jw_token` | `username_or_email`, `pwhash` | `token`, `expiration` | setup, reauthentication, token expiry, after 401/403 |
 | `get_building_access_rights` | `jwt_token` | positional `[[buildingId, country, postalCode, city, street, outdoorTemp, outdoorHum, name], ...]`: `buildingId`, `outdoorTemp`, `outdoorHum` | setup; every poll while an outdoor sensor is enabled |
 | `get_apartment_access_rights` | `building_id` (**string**) | positional `[[buildingId, apartmentId, name, isOnline], ...]`: `apartmentId`, `name` | setup, for every building; once per load to find the building of the apartment, while an outdoor sensor is enabled |
-| `get_apartment_data` | `apartment_id` (int) | `operationMode`, `communicationActiveRelayModule`, `communicationActiveThermostats`, `disabled`, `disabledCommand`, `fwVer`, `thermostats[]` | every poll |
+| `get_apartment_data` | `apartment_id` (int) | `operationMode`, `communicationActiveThermostats`, `disabled`, `disabledCommand`, `fwVer`, `thermostats[]` | every poll |
 | `update_thermostat_settings` | `thermostat_id` (int), `temp_setpoint_degC` (number) | `thermostat_id` | set temperature |
 | `update_apartment_settings` | `apartment_id` (**string**), `disabled` (bool) | `apartment_id` (string), next to `message`: `Apartment settings updated successfully.` | switch the system on or off |
 
@@ -54,9 +54,9 @@ Per thermostat: `ID`, `name` (may be null), `measuredTempDegC`, `measuredHumPerc
 Known facts:
 
 - `pwhash` is the lowercase hex SHA-256 of the UTF-8 password.
-- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40 s. A system switched off for that short time still reported its relay module (live captures, 2026-11-04).
+- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40 s (live captures, 2026-11-04).
 - SBM keeps setpoints with 0.1 °C resolution, for example 22.3.
-- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reports `communicationActiveRelayModule: false`, while its thermostats still report fresh values.
+- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reports `communicationActiveRelayModule: false`, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
 - Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`.
 - 401 and 403 mean the token was rejected.
 - Numbers come as integers or floats (`19`, `23.2`); unused meter channels are `-1`.
@@ -141,7 +141,7 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 
 ### Switched-off system and the System switch
 
-- `system_off` is `disabledCommand` while a switching is pending, otherwise `disabled`, like the app, so the switch, the climate entities and the system mode show a switching at once. As a switched-off system does not report its relay module, the system counts as reached when `communicationActiveThermostats` is true and either `communicationActiveRelayModule` or the confirmed `disabled` is: the entities stay available, and no lost connection is logged. The confirmed value is used there because the relay module of a system that is being switched on reports only after the device confirmed it.
+- `system_off` is `disabledCommand` while a switching is pending, otherwise `disabled`, like the app, so the switch, the climate entities and the system mode show a switching at once. Switching the system does not affect the availability of the entities.
 - A `switch` on the apartment device, named `System`, `unique_id` `{apartment_id}_system`, enabled by default, sends `update_apartment_settings` like the app and then refreshes. `PARALLEL_UPDATES = 1`.
 - The climate entities show `off` but do not switch the system: off for one room, for example from an automation for an open window, would switch off every room.
 - The target temperature can still be set while the system is off.
@@ -161,10 +161,10 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 
 ### Availability and logging
 
-- All thermostat entities are unavailable when the last poll failed, when `communicationActiveThermostats` is false, or when `communicationActiveRelayModule` is false while the system is switched on (the bridge's `IsConnected`, except for a switched-off system).
+- All thermostat entities are unavailable when the last poll failed, or when `communicationActiveThermostats` is false, the only connection indicator of the app. `communicationActiveRelayModule` is not read, as the app does not use it either. The bridge's `IsConnected` also requires it, so the integration differs from the bridge here on purpose.
 - A thermostat missing from the latest answer makes its entities unavailable. Thermostats added later get their entities at the next poll (quality rule `dynamic-devices`): each platform keeps the ids it has added entities for, in `SbmFizikusData.known_thermostats`. Deleting a stale thermostat device forgets its id, so it gets entities again if SBM reports it later.
 - `async_remove_config_entry_device` allows deleting a thermostat device that is no longer in the latest answer, and refuses present thermostats and the apartment device (quality rule `stale-devices`). While the entry is not loaded (for example while setup retries) there is no answer to check against, so it refuses every device.
-- Failed polls are logged once by the coordinator as an error, and the recovery once as a warning. It also logs a warning once when SBM stops reaching the system, and once when it reaches it again (quality rule `log-when-unavailable`). The recoveries are warnings because Home Assistant hides info messages by default, so the log would show only the start of an outage; the info message of the base class stays.
+- Failed polls are logged once by the coordinator as an error, and the recovery once as a warning. It also logs a warning once when SBM stops reaching the thermostats, and once when it reaches them again (quality rule `log-when-unavailable`). The recoveries are warnings because Home Assistant hides info messages by default, so the log would show only the start of an outage; the info message of the base class stays.
 - When SBM cannot be reached while the entry is set up, for example at startup, a warning with the cause is logged once, and another one when a retry succeeds. Home Assistant logs this only as an info message. Every retry has a new coordinator, so the entries with a logged outage are kept in `hass.data`.
 - The config flow logs a warning with the cause when SBM cannot be reached while adding the integration or during a reauthentication, as the form shows only the kind of the error.
 - The debug log shows every request with its answer, status and duration, the parsed state of every poll, and the cause of every failed call. That also covers the errors of the config flow, which the form shows only by kind, and the repeated failures of a poll, which the coordinator logs only once. The username, the password hash and the token are replaced in the requests. The answers to the login and to `get_building_access_rights` are left out, because they hold the token and the address of the building; the parsed outdoor values are logged instead.
