@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  tests:
-    name: Lint and tests
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,5 +22,27 @@ jobs:
         run: |
           uv run ruff check
           uv run ruff format --check
+
+  tests:
+    # latest: the Home Assistant release of uv.lock, which Dependabot keeps current.
+    # minimum: the oldest release the integration supports, the one in hacs.json, so
+    # code that needs a newer release fails here instead of for the users.
+    name: Tests (${{ matrix.home-assistant }} Home Assistant)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        home-assistant: [latest, minimum]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Install the dependencies
+        run: uv sync --locked
+      - name: Install the minimum Home Assistant release
+        if: matrix.home-assistant == 'minimum'
+        # pytest-homeassistant has the version of the Home Assistant release it pins.
+        run: uv pip install "pytest-homeassistant==$(jq -r .homeassistant hacs.json)"
+      - name: Show the Home Assistant release
+        run: uv pip show homeassistant | grep -i '^version'
       - name: Test
-        run: uv run pytest --cov --cov-report=term-missing
+        run: uv run --no-sync pytest --cov --cov-report=term-missing

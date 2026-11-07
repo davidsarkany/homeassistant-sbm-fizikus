@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # pytest-homeassistant pins the Home Assistant release of the tests; the tests of
+  # the minimum release in hacs.json do not change with it.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -199,7 +199,7 @@ Because the device and entity names match, Home Assistant gives the new entities
 - The tests cover the API client (request bodies equal the bridge's and the app's, the hash, re-login on 401/403, token expiry, parsing), the config flow (success, errors with recovery, no apartments, choosing an apartment, already configured, reauthentication of all apartments of the account), the coordinators, the climate mapping, the sensors, the switch, the outdoor sensors, availability, diagnostics, entity IDs in English and Hungarian, new and stale thermostats.
 - Coverage is 100 % for lines and branches, and CI enforces it. The quality scale has no tiers for custom integrations, but its rules up to Silver, and the Gold rules named here, are the target.
 - The tests need the Python version of the Home Assistant release they run against, pinned in `.python-version`; `uv` manages the environment. Home Assistant does not run on Windows, so the README runs the tests in Docker or WSL there.
-- CI runs `ruff`, the tests, `hassfest` and the HACS validation action.
+- CI runs `ruff`, `hassfest` and the HACS validation action, and the tests twice: with the Home Assistant release of `uv.lock`, and with the minimum release in `hacs.json`, so code that needs a newer release fails before it reaches users. Dependabot opens one grouped pull request a month for the Python dependencies, which moves the tests to the newest release, and one for the GitHub Actions. A weekly workflow runs the tests against the newest release, beta included, to notice deprecations before the stable release; GitHub notifies only about its failures.
 
 ## Repository
 

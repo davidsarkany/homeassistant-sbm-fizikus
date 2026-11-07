@@ -159,7 +159,7 @@ A tesztek a `pytest-homeassistant` csomagot, a Home Assistant core tesztcsomagj�
 docker run --rm -it -v "${PWD}:/work" -w /work -e UV_PROJECT_ENVIRONMENT=/opt/venv ghcr.io/astral-sh/uv:python3.14-bookworm-slim sh -c "uv sync && uv run pytest --cov --cov-report=term-missing"
 ```
 
-A `pytest-homeassistant` rögzíti azt a Home Assistant-kiadást, amelyhez tartozik: egy új kiadással való teszteléshez frissítsd.
+A `pytest-homeassistant` rögzíti azt a Home Assistant-kiadást, amelyhez tartozik. A Dependabot havonta PR-t nyit a frissítésére. A CI a teszteket a `hacs.json`-ban megadott legrégebbi támogatott Home Assistant-verzióval is lefuttatja, egy heti workflow pedig a legújabb bétával.
 
 ### HACS-tároló metaadatai
 

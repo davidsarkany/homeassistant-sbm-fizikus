@@ -157,7 +157,7 @@ The tests use `pytest-homeassistant`, the test package of Home Assistant core. H
 docker run --rm -it -v "${PWD}:/work" -w /work -e UV_PROJECT_ENVIRONMENT=/opt/venv ghcr.io/astral-sh/uv:python3.14-bookworm-slim sh -c "uv sync && uv run pytest --cov --cov-report=term-missing"
 ```
 
-`pytest-homeassistant` pins the Home Assistant release it belongs to: upgrade it to test with a new release.
+`pytest-homeassistant` pins the Home Assistant release it belongs to. Dependabot opens a monthly pull request to upgrade it; CI also runs the tests with the minimum Home Assistant release in `hacs.json`, and a weekly workflow with the newest beta.
 
 ### HACS repository metadata
 

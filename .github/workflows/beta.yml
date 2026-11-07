@@ -1,0 +1,31 @@
+name: Home Assistant beta
+
+# Runs the tests against the newest Home Assistant release, beta included, to notice a
+# deprecation or a breaking change before the stable release. GitHub notifies only
+# about failed runs when "Only notify for failed workflows" is set in the
+# notification settings.
+
+on:
+  schedule:
+    # Weekly, on Monday morning.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Home Assistant beta)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Install the dependencies
+        run: uv sync --locked
+      - name: Install the newest Home Assistant release, beta included
+        run: uv pip install --upgrade --prerelease allow pytest-homeassistant
+      - name: Show the Home Assistant release
+        run: uv pip show homeassistant | grep -i '^version'
+      - name: Test
+        run: uv run --no-sync pytest
