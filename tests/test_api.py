@@ -283,6 +283,56 @@ async def test_login_refused(client: SbmClient, sbm: SbmStub, status: int) -> No
     assert sbm.operations == [LOGIN]
 
 
+@pytest.mark.parametrize("error", ["invalid password", "user not found"])
+async def test_login_refused_with_status_500(
+    client: SbmClient, sbm: SbmStub, error: str
+) -> None:
+    """SBM refuses a login with status 500 and an error (live captures, 2026-11-07)."""
+    sbm.queue(LOGIN, status=500, json_body={"error": error})
+
+    with pytest.raises(SbmAuthError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert str(err.value) == f"SBM refused the login with status 500: {error}"
+    assert sbm.operations == [LOGIN]
+
+
+@pytest.mark.parametrize(
+    "json_body",
+    [
+        {"error": "Internal server error"},
+        {"error": 5},
+        {"message": "invalid password"},
+        ["invalid password"],
+    ],
+)
+async def test_other_login_error_is_not_a_refusal(
+    client: SbmClient, sbm: SbmStub, json_body: Any
+) -> None:
+    """Only SBM's refusals mean wrong credentials, not its other failures."""
+    sbm.queue(LOGIN, status=500, json_body=json_body)
+
+    with pytest.raises(SbmApiError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert not isinstance(err.value, SbmAuthError)
+    assert err.value.status == 500
+
+
+async def test_refusal_error_of_another_operation_is_not_a_refusal(
+    client: SbmClient, sbm: SbmStub
+) -> None:
+    """Only the login can be refused; the call keeps its status."""
+    sbm.queue(DATA, status=500, json_body={"error": "invalid password"})
+
+    with pytest.raises(SbmApiError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert not isinstance(err.value, SbmAuthError)
+    assert err.value.sbm_error == "invalid password"
+    assert sbm.operations == [LOGIN, DATA]
+
+
 @pytest.mark.parametrize(
     "status", [400, 404, 405, 408, 409, 410, 415, 422, 429, 500, 503]
 )

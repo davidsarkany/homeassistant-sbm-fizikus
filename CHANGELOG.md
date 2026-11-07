@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 (2026-11-07)
+
+- Fixed: a wrong password or username is recognized. SBM refuses a login with status 500, which the integration took for an outage: the setup said it could not connect, and after a password change the entities stayed unavailable without asking for the new password. Now the setup says the username or password is invalid, and Home Assistant asks for the password again. Other failures of SBM still count as an outage.
+
 ## 0.1.3 (2026-11-07)
 
 - Changed: the entities no longer become unavailable when SBM reports the relay module as disconnected. Like the SBM Fizikus app, the integration now uses only the connection of the thermostats, so a real failure of the relay module does not show in Home Assistant.

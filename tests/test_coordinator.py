@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import logging
+from typing import Any
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -136,13 +137,24 @@ async def test_failed_relogin_keeps_polling_and_recovers(
     assert sbm.operations.count("get_apartment_data") == 3
 
 
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        {"status": 401},
+        # What SBM answers to a wrong password (live capture, 2026-11-07).
+        {"status": 500, "json_body": {"error": "invalid password"}},
+    ],
+)
 async def test_refused_login_starts_reauth(
-    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    refusal: dict[str, Any],
 ) -> None:
     await setup_integration(hass, config_entry)
     # The password was changed: the token is rejected, and so is the new login.
     sbm.queue("get_apartment_data", status=401)
-    sbm.queue("get_jw_token", status=401)
+    sbm.queue("get_jw_token", **refusal)
 
     await refresh(config_entry)
 

@@ -38,6 +38,15 @@ Payload: `username_or_email`, `pwhash` (the lowercase hex SHA-256 of the UTF-8 p
 
 The answer is an object `{token, rights, expiration, refresh_token, refresh_token_expiration}`, or the same values as an array in that order. `token: null` means wrong credentials.
 
+A refused login, captured live on 2026-11-07, is not a 401 or 403 and has no `token`: SBM answers HTTP 500 with an `error` that names the reason.
+
+| Login | Status | Answer |
+|---|---|---|
+| Unknown username | 500 | `{"error": "user not found"}` |
+| Known username, wrong password | 500 | `{"error": "invalid password"}` |
+
+SBM's own failures may come with status 500 too, so only these errors mean wrong credentials.
+
 - **Roles**: when `rights` lists more than one role and no `login_level` was sent, the app lets the user pick one and logs in again with it. Seen values: `ap_owner` (the owner of an apartment, in the user's token), `ap_resident` (a sub-user added by the owner).
 - **The token** is a JWT. Its claims: `username`, `account_id`, `exp`, `type` (`access`), `login_level`.
 - **`expiration`** looks like `2026-11-05 17:02:55.123456`, without an offset. The app parses it with `Date.parse` after replacing the space with `T`, which JavaScript reads as local time. The integration reads it as UTC; both refresh well before the end, and a rejected token leads to a new login anyway.

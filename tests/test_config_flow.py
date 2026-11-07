@@ -80,6 +80,22 @@ async def test_user_flow(hass: HomeAssistant, sbm: SbmStub) -> None:
     [
         ("get_jw_token", {"status": 401}, "invalid_auth"),
         ("get_jw_token", {"json_body": {"message": "Wrong password"}}, "invalid_auth"),
+        # What SBM answers to a wrong password or username (live captures).
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "invalid password"}},
+            "invalid_auth",
+        ),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "user not found"}},
+            "invalid_auth",
+        ),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "Internal server error"}},
+            "cannot_connect",
+        ),
         ("get_jw_token", {"status": 500}, "cannot_connect"),
         ("get_jw_token", {"status": 404}, "cannot_connect"),
         ("get_jw_token", {"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
@@ -287,6 +303,11 @@ async def test_reauth_flow(
     ("operation", "answer", "error"),
     [
         ("get_jw_token", {"status": 403}, "invalid_auth"),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "invalid password"}},
+            "invalid_auth",
+        ),
         ("get_jw_token", {"status": 404}, "cannot_connect"),
         ("get_jw_token", {"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
         ("get_apartment_data", {"status": 502}, "cannot_connect"),

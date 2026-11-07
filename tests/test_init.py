@@ -101,6 +101,16 @@ async def test_setup_logs_why_sbm_cannot_be_reached(
         ("get_jw_token", {"status": 500}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 404}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 401}, ConfigEntryState.SETUP_ERROR),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "invalid password"}},
+            ConfigEntryState.SETUP_ERROR,
+        ),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "Internal server error"}},
+            ConfigEntryState.SETUP_RETRY,
+        ),
     ],
 )
 async def test_setup_failure(

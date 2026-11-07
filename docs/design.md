@@ -1,6 +1,6 @@
 # SBM Fizikus Home Assistant integration: design
 
-This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.3.
+This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.4.
 
 The reference implementation of the SBM API is the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge. Paths starting with `src/` refer to that repository.
 
@@ -59,6 +59,7 @@ Known facts:
 - `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reports `communicationActiveRelayModule: false`, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
 - Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`.
 - 401 and 403 mean the token was rejected.
+- A refused login is HTTP 500 with `{"error": "invalid password"}` or `{"error": "user not found"}` (live captures, 2026-11-07), not a 401 or 403.
 - Numbers come as integers or floats (`19`, `23.2`); unused meter channels are `-1`.
 - An outdoor value that SBM does not know is `-1`. The integration reads an outdoor humidity of `-1` as unknown, and an outdoor temperature of `-1` only when the humidity is `-1` too, because -1 °C is a real winter temperature.
 
@@ -82,7 +83,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 - The config flow asks for the username and the password, computes `pwhash` at once, and stores only `username` and `pwhash` in the config entry. The password is never stored or logged.
 - `pwhash` is as good as the password for SBM, so it is treated as a secret: redacted in diagnostics, never logged.
 - The token and its expiration live in memory only. Before a call the client logs in again when the token expires within 30 s. On 401/403 it drops the token, logs in once more and retries the call once, like the bridge's `SbmSession`.
-- A login that SBM answers but refuses (401/403, or a JSON object without a token) raises `ConfigEntryAuthFailed`, which starts the reauthentication flow. An answer that is not valid JSON is an invalid response, so a broken answer does not start a reauthentication.
+- A login that SBM refuses (status 500 with the `error` `invalid password` or `user not found`, 401/403, or a JSON object without a token) raises `ConfigEntryAuthFailed`, which starts the reauthentication flow. An answer that is not valid JSON is an invalid response, so a broken answer does not start a reauthentication. Any other status 500 is a failure of SBM, not a refusal, so it does not start one either.
 - The reauthentication flow asks only for the password and checks it by fetching the apartment data of the entry. It also gives the new hash to the other entries with the same username (the other apartments of the account) and reloads them, which closes their own reauthentication flows.
 - Other HTTP errors (including login route errors such as 404), network errors and timeouts raise `UpdateFailed` (poll) or `HomeAssistantError` (actions); the next poll tries again.
 - Every exception shown to users uses `translation_domain` and `translation_key`, with the texts in the `exceptions` section of the translation files (quality rule `exception-translations`).

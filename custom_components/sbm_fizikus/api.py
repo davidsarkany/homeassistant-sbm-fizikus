@@ -38,6 +38,10 @@ _REDACTED: Final = "<redacted>"
 _SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_email"})
 # The answer to a login holds the token, the list of buildings holds their addresses.
 _ANSWERS_NOT_LOGGED: Final = frozenset({"get_jw_token", "get_building_access_rights"})
+# The `error` of SBM's answer to a refused login, which comes with status 500 (live
+# captures, 2026-11-07). Any other error of a login does not prove the credentials
+# are wrong, as SBM also answers its own failures with status 500.
+_LOGIN_REFUSALS: Final = frozenset({"invalid password", "user not found"})
 # What SBM reports for an outdoor value it does not know.
 _UNKNOWN_OUTDOOR_VALUE: Final = -1.0
 
@@ -53,10 +57,14 @@ class SbmConnectionError(SbmError):
 class SbmApiError(SbmError):
     """SBM answered with a status code that is not a success."""
 
-    def __init__(self, status: int, message: str) -> None:
-        """Initialize the error with the HTTP status code."""
+    def __init__(
+        self, status: int, message: str, *, sbm_error: str | None = None
+    ) -> None:
+        """Initialize the error with the HTTP status code and SBM's `error`."""
         super().__init__(message)
         self.status = status
+        # The `error` of the answer, when it is a JSON object with a string `error`.
+        self.sbm_error = sbm_error
 
     @property
     def is_authentication_failure(self) -> bool:
@@ -245,7 +253,12 @@ class SbmClient:
                 "get_jw_token", payload, redact_response=True
             )
         except SbmApiError as err:
-            # A route or request error does not prove the credentials are wrong.
+            # A route, request or server error does not prove the credentials are
+            # wrong, only a rejection or one of SBM's refusals does.
+            if err.sbm_error in _LOGIN_REFUSALS:
+                raise SbmAuthError(
+                    f"SBM refused the login with status {err.status}: {err.sbm_error}"
+                ) from err
             if err.is_authentication_failure:
                 raise SbmAuthError(
                     f"SBM refused the login with status {err.status}"
@@ -403,6 +416,7 @@ class SbmClient:
                 status,
                 f"SBM request {operation} failed with status "
                 f"{_describe_status(status)}: {shown}",
+                sbm_error=_error_field(text),
             )
         try:
             return json.loads(text)
@@ -410,6 +424,17 @@ class SbmClient:
             raise SbmInvalidResponseError(
                 f"SBM returned an invalid response to {operation}: {shown}"
             ) from err
+
+
+def _error_field(text: str) -> str | None:
+    """Return the `error` of an answer such as {"error": "invalid password"}."""
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return None
+    if isinstance(answer, dict) and isinstance(error := answer.get("error"), str):
+        return error
+    return None
 
 
 def _parse_rows(response: Any, operation: str, *, id_index: int) -> list[list[Any]]:
