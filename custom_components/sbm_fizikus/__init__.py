@@ -87,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SbmFizikusConfigEntry) -
     entry.runtime_data = SbmFizikusData(
         coordinator,
         # Polls only for enabled outdoor sensors, so it has no first refresh here.
-        SbmFizikusOutdoorCoordinator(hass, entry, client),
+        SbmFizikusOutdoorCoordinator(hass, entry, client, coordinator),
         apartment_device.id,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -69,7 +69,7 @@ The **SBM Fizikus** device of the apartment has the switch of the system, and th
 | Flow rate | no | Water flowing through the apartment, in l/h. |
 
 - The **target temperature** can be set between 5 and 35 °C. SBM keeps it with 0.1 °C resolution: the card steps by 0.5 °C, and other values (for example from an automation) are rounded to 0.1 °C.
-- **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, like with the bridge, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
+- **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, like with the bridge, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. When the system is switched off for the whole building (in the app: "Épület szinten a rendszer kikapcsolva"), the mode is `off` too, and the **System** switch is unavailable, as the apartment cannot be switched then, like in the app. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
 - The **outdoor sensors** need an extra request to SBM, so SBM is asked for the outdoor weather only while at least one of them is enabled. Enabling one reloads the integration after about 30 seconds. They do not depend on the thermostats: they stay available when SBM reports the thermostats as disconnected, and the thermostats stay available when the outdoor weather cannot be fetched.
 - The entities are **unavailable** when SBM cannot be reached, when SBM reports the thermostats as disconnected, like the connection indicator of the app, or when a thermostat is missing from the answer of SBM.
 
@@ -77,7 +77,7 @@ The **SBM Fizikus** device of the apartment has the switch of the system, and th
 
 The integration polls SBM every 2 minutes. After a new target temperature is set or the system is switched, it polls at once. SBM reports the new value as pending right away, so it shows up at once, while the thermostat or the device confirms it within 1–2 minutes. Thermostats added to the apartment later show up at the next poll, without a reload.
 
-While an outdoor sensor is enabled, every poll also asks SBM for the buildings of the account, which carry the outdoor weather. After a start or reload, the integration also looks up once which building the apartment is in.
+Every 10 minutes the integration also asks whether the system is switched off for the whole building. For that, after a start or reload it looks up once which building the apartment is in. While an outdoor sensor is enabled, every poll also asks SBM for the buildings of the account, which carry the outdoor weather.
 
 ## Example
 
@@ -119,7 +119,7 @@ The names of all entities stay in English in every language, because Home Assist
 - With more than one apartment, the devices of the apartments can have the same names: every apartment has an SBM Fizikus device, and rooms are often called the same. Home Assistant then adds `_2` to the entity IDs of the apartment that is set up later. Rename the devices or the entities to tell them apart.
 - Heating or cooling cannot be changed from Home Assistant. Choosing the other mode shows no error, nothing happens.
 - A scene saved while the system was switched off (in `off` mode) fails while the system is on, and does not set its target temperature either: Home Assistant itself refuses `off` then. Save the scene again while the system is on.
-- When the system is switched off for the whole building, the integration does not see it: the **System** switch stays on, and the climate entities do not switch to `off`. The SBM Fizikus app then shows "Épület szinten a rendszer kikapcsolva" (the system is switched off at building level).
+- The integration sees a system switched off for the whole building within up to 10 minutes.
 - Meters, energy and volume counters, the building-level child lock and the manual cooling disable are not available. Of the water values only the first channel is: SBM reports the second channel as not connected.
 
 ## Troubleshooting

@@ -170,11 +170,11 @@ The answer, captured by the user, is the same for on and off: HTTP 200 and `{"me
 
 ## What it means for the integration
 
-Already used: the login, the building and apartment lists, `get_apartment_data`, the target temperature, and `update_apartment_settings` with `disabled` (the System switch).
+Already used: the login, the building and apartment lists, `get_building_data` with `disabled`, `get_apartment_data`, the target temperature, the child lock, and `update_apartment_settings` with `disabled` (the System switch).
 
 Worth knowing for later work:
 
-- **Building-level switch**: `get_building_data` `disabled` switches every apartment off, and the apartment's own `disabled` can still be `false` then. The integration does not read it yet, so a system switched off at building level would not show as off.
+- **Building-level switch**: `get_building_data` `disabled` switches every apartment off, and the apartment's own `disabled` can still be `false` then. The integration reads it every 10 minutes and shows the system as off then. The answer (live capture, 2026-11-07) has `message`, `building_id` and `data`, with the address, `disabled`, `childLock`, the outdoor weather (`externalTemperatureDegC`, `externalTemperatureAvgDegC`, `externalHumidityPerc`), `heatingCircuits` and `apartmentInfo`.
 - **Pending commands**: right after a change, `…Command` fields hold the new value until the device confirms it. Like the app, the integration shows the pending target temperature (`temperatureSetpointCommandDegC`) and the pending switching (`disabledCommand`) instead of the confirmed values. The integration shows the pending child lock (`childLockCommand`) the same way.
 - **Child lock**: per room with `child_lock` in `update_thermostat_settings`; the state is `childLock` (or `childLockCommand`). A lock that was never set is `null` (live capture, 2026-11-07).
 - **Dehumidifier**: `air_drying_max_level` in `update_apartment_settings`, only where `dehumidificationEquipment` is not `0`.

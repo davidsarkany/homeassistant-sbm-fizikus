@@ -22,8 +22,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.sbm_fizikus.api import SbmBuilding, SbmClient
+from custom_components.sbm_fizikus.api import SbmBuilding
 from custom_components.sbm_fizikus.const import DOMAIN
+from custom_components.sbm_fizikus.coordinator import SbmFizikusOutdoorCoordinator
 
 from .conftest import APARTMENT_ID, SbmStub, setup_integration
 
@@ -81,8 +82,10 @@ async def test_disabled_by_default_and_not_polled(
     await wait_update_interval(hass, freezer)
 
     assert sbm.operations.count("get_apartment_data") == 2
-    assert BUILDINGS not in sbm.operations
-    assert APARTMENTS not in sbm.operations
+    # Only the lookup of the building of the apartment, at setup, for whether the
+    # building is switched off; no poll of the outdoor weather.
+    assert sbm.operations.count(BUILDINGS) == 1
+    assert sbm.operations.count(APARTMENTS) == 1
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
@@ -123,8 +126,8 @@ async def test_outdoor_sensors(
         assert entry.unique_id == f"{APARTMENT_ID}_{key}"
         assert entry.device_id == apartment.id
 
-    # One fetch for both sensors, with a single lookup of the building.
-    assert sbm.operations.count(BUILDINGS) == 1
+    # One fetch for both sensors; the building was looked up once, at setup.
+    assert sbm.operations.count(BUILDINGS) == 2
     assert sbm.operations.count(APARTMENTS) == 1
     assert sbm.payloads(APARTMENTS)[0]["building_id"] == "24"
 
@@ -134,14 +137,14 @@ async def test_slow_outdoor_fetch_does_not_hold_up_the_setup(
     hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
 ) -> None:
     answered = asyncio.Event()
-    original = SbmClient.async_get_buildings
+    original = SbmFizikusOutdoorCoordinator._async_update_data
 
-    async def slow_buildings(self: SbmClient) -> list[SbmBuilding]:
+    async def slow_update(self: SbmFizikusOutdoorCoordinator) -> SbmBuilding:
         await answered.wait()
         return await original(self)
 
     config_entry.add_to_hass(hass)
-    with patch.object(SbmClient, "async_get_buildings", slow_buildings):
+    with patch.object(SbmFizikusOutdoorCoordinator, "_async_update_data", slow_update):
         assert await hass.config_entries.async_setup(config_entry.entry_id)
 
         assert config_entry.state is ConfigEntryState.LOADED
@@ -153,7 +156,7 @@ async def test_slow_outdoor_fetch_does_not_hold_up_the_setup(
 
     assert hass.states.get(OUTDOOR_TEMPERATURE).state == "19.9"
     assert hass.states.get(OUTDOOR_HUMIDITY).state == "49.9"
-    assert sbm.operations.count(BUILDINGS) == 1
+    assert sbm.operations.count(BUILDINGS) == 2
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
@@ -172,7 +175,7 @@ async def test_readded_sensor_does_not_fetch_again(
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert hass.states.get("sensor.outside").state == "19.9"
-    assert sbm.operations.count(BUILDINGS) == 1
+    assert sbm.operations.count(BUILDINGS) == 2
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
@@ -189,7 +192,7 @@ async def test_polls_with_the_thermostats(
 
     assert hass.states.get(OUTDOOR_TEMPERATURE).state == "12.5"
     assert hass.states.get(OUTDOOR_HUMIDITY).state == "80.0"
-    assert sbm.operations.count(BUILDINGS) == 2
+    assert sbm.operations.count(BUILDINGS) == 3
     # The building is looked up only once.
     assert sbm.operations.count(APARTMENTS) == 1
 
@@ -211,7 +214,7 @@ async def test_disabling_the_sensors_stops_polling(
     await wait_update_interval(hass, freezer)
 
     # The humidity still listens.
-    assert sbm.operations.count(BUILDINGS) == 2
+    assert sbm.operations.count(BUILDINGS) == 3
 
     entity_registry.async_update_entity(
         OUTDOOR_HUMIDITY, disabled_by=er.RegistryEntryDisabler.USER
@@ -219,7 +222,7 @@ async def test_disabling_the_sensors_stops_polling(
     await hass.async_block_till_done()
     await wait_update_interval(hass, freezer)
 
-    assert sbm.operations.count(BUILDINGS) == 2
+    assert sbm.operations.count(BUILDINGS) == 3
     assert sbm.operations.count("get_apartment_data") == 3
 
 
@@ -230,6 +233,8 @@ async def test_disabling_the_sensors_stops_polling(
 async def test_missing_values_are_unknown(
     hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry, row: list[Any]
 ) -> None:
+    # For the lookup of the building at setup, then for the outdoor weather.
+    sbm.queue(BUILDINGS, json_body=[row])
     sbm.queue(BUILDINGS, json_body=[row])
 
     await setup_integration(hass, config_entry)
@@ -242,7 +247,10 @@ async def test_missing_values_are_unknown(
 async def test_apartment_in_another_building(
     hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
 ) -> None:
-    sbm.queue(BUILDINGS, json_body=[building(23, 5, 90), building(24, 19.9, 49.9)])
+    buildings = [building(23, 5, 90), building(24, 19.9, 49.9)]
+    # For the lookup of the building at setup, then for the outdoor weather.
+    sbm.queue(BUILDINGS, json_body=buildings)
+    sbm.queue(BUILDINGS, json_body=buildings)
     sbm.queue(APARTMENTS, json_body=[[23, 701, "BP-TEST-001-100", True]])
 
     await setup_integration(hass, config_entry)
@@ -262,6 +270,8 @@ async def test_building_not_found(
     caplog: pytest.LogCaptureFixture,
     freezer: FrozenDateTimeFactory,
 ) -> None:
+    # SBM does not list the apartment, for the lookup at setup and the outdoor one.
+    sbm.queue(APARTMENTS, json_body=[[24, 701, "BP-TEST-001-100", True]])
     sbm.queue(APARTMENTS, json_body=[[24, 701, "BP-TEST-001-100", True]])
 
     await setup_integration(hass, config_entry)
@@ -274,13 +284,13 @@ async def test_building_not_found(
         "temperature and humidity are not available"
     ) in caplog.text
     # The failed fetch is not repeated for the second sensor.
-    assert sbm.operations.count(BUILDINGS) == 1
+    assert sbm.operations.count(BUILDINGS) == 2
 
     # The next poll looks the building up again.
     await wait_update_interval(hass, freezer)
 
     assert hass.states.get(OUTDOOR_TEMPERATURE).state == "19.9"
-    assert sbm.operations.count(APARTMENTS) == 2
+    assert sbm.operations.count(APARTMENTS) == 3
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")

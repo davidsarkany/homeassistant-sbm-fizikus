@@ -1,6 +1,7 @@
 """Tests of the SBM API client."""
 
 import asyncio
+import dataclasses
 import logging
 from typing import Any
 
@@ -943,3 +944,47 @@ async def test_invalid_answer_to_set_child_lock(
 
     with pytest.raises(SbmInvalidResponseError):
         await client.async_set_child_lock(LIVING_ROOM_ID, locked=True)
+
+
+async def test_building_off(client: SbmClient, sbm: SbmStub) -> None:
+    sbm.queue(LOGIN, json_body=token("jwt"))
+    sbm.queue("get_building_data", json_body={"data": {"disabled": True}})
+
+    assert await client.async_get_building_off(24)
+    assert not await client.async_get_building_off(24)
+    # The building id is an integer here, like the app sends it.
+    assert sbm.bodies[-1] == (
+        b'{"operation":"get_building_data","payload":{"building_id":24,'
+        b'"jwt_token":"jwt"}}'
+    )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [[], {}, {"data": None}, {"data": {}}, {"data": {"disabled": "true"}}],
+)
+async def test_invalid_building_data(
+    client: SbmClient, sbm: SbmStub, answer: Any
+) -> None:
+    sbm.queue("get_building_data", json_body=answer)
+
+    with pytest.raises(SbmInvalidResponseError):
+        await client.async_get_building_off(24)
+
+
+def test_switched_off_by_the_apartment_or_the_building() -> None:
+    data = SbmApartmentData(
+        operation_mode=0,
+        connected=True,
+        system_off=False,
+        thermostats={},
+        firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
+        raw={},
+    )
+
+    assert not data.switched_off
+    assert dataclasses.replace(data, system_off=True).switched_off
+    assert dataclasses.replace(data, building_off=True).switched_off

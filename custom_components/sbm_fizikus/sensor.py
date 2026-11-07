@@ -47,7 +47,7 @@ _SYSTEM_MODES = {OPERATION_MODE_HEATING: "heating", OPERATION_MODE_COOLING: "coo
 
 def _system_mode(data: SbmApartmentData, thermostat: SbmThermostat) -> str | None:
     """Return off, the mode of the building while the thermostat is active, or idle."""
-    if data.system_off:
+    if data.switched_off:
         return "off"
     if not thermostat.active:
         return "idle"

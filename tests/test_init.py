@@ -48,8 +48,15 @@ async def test_setup_and_unload(
         len(dr.async_entries_for_config_entry(device_registry, config_entry.entry_id))
         == 5
     )
-    # Setup polls only the apartment data, after the login.
-    assert sbm.operations == ["get_jw_token", "get_apartment_data"]
+    # Setup polls the apartment data, after the login, and whether the building is
+    # switched off, after looking up the building of the apartment.
+    assert sbm.operations == [
+        "get_jw_token",
+        "get_apartment_data",
+        "get_building_access_rights",
+        "get_apartment_access_rights",
+        "get_building_data",
+    ]
 
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.NOT_LOADED

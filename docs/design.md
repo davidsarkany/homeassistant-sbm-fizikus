@@ -26,7 +26,6 @@ Not supported:
 - Meters, energy and volume counters from `get_apartment_data`, and the second water channel (`…2…`), which SBM reports as not connected (`-1`).
 - The building-level child lock (`childLock` of `get_building_data`) and the manual cooling disable (`coolingDisabledManually`).
 - Changing heating or cooling, which is set centrally for the building.
-- The building-level switch (`disabled` of `get_building_data`): a system switched off for the whole building does not show as off.
 - SBM's refresh token (see [Open points](#open-points)).
 - Automatic migration of the bridge's MQTT entities.
 
@@ -43,8 +42,9 @@ All calls are `PUT https://ps9et7hsp3.execute-api.eu-central-1.amazonaws.com/fro
 | Operation | Payload | Answer used | When |
 |---|---|---|---|
 | `get_jw_token` | `username_or_email`, `pwhash` | `token`, `expiration` | setup, reauthentication, token expiry, after 401/403 |
-| `get_building_access_rights` | `jwt_token` | positional `[[buildingId, country, postalCode, city, street, outdoorTemp, outdoorHum, name], ...]`: `buildingId`, `outdoorTemp`, `outdoorHum` | setup; every poll while an outdoor sensor is enabled |
-| `get_apartment_access_rights` | `building_id` (**string**) | positional `[[buildingId, apartmentId, name, isOnline], ...]`: `apartmentId`, `name` | setup, for every building; once per load to find the building of the apartment, while an outdoor sensor is enabled |
+| `get_building_access_rights` | `jwt_token` | positional `[[buildingId, country, postalCode, city, street, outdoorTemp, outdoorHum, name], ...]`: `buildingId`, `outdoorTemp`, `outdoorHum` | setup; once per load to find the building of the apartment; every poll while an outdoor sensor is enabled |
+| `get_apartment_access_rights` | `building_id` (**string**) | positional `[[buildingId, apartmentId, name, isOnline], ...]`: `apartmentId`, `name` | setup and reauthentication, for every building; once per load to find the building of the apartment |
+| `get_building_data` | `building_id` (int) | `data.disabled` | every 10 minutes |
 | `get_apartment_data` | `apartment_id` (int) | `operationMode`, `communicationActiveThermostats`, `disabled`, `disabledCommand`, `fwVer`, `thermostats[]` | every poll |
 | `update_thermostat_settings` | `thermostat_id` (int), `temp_setpoint_degC` (number) | `thermostat_id` | set temperature |
 | `update_apartment_settings` | `apartment_id` (**string**), `disabled` (bool) | `apartment_id` (string), next to `message`: `Apartment settings updated successfully.` | switch the system on or off |
@@ -97,7 +97,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 
 ### Polling
 
-- `SbmFizikusCoordinator` calls `get_apartment_data` every 120 s, the bridge's default. It is stored in `ConfigEntry.runtime_data`.
+- `SbmFizikusCoordinator` calls `get_apartment_data` every 120 s, the bridge's default. It is stored in `ConfigEntry.runtime_data`. Every 10 minutes it also calls `get_building_data`, see [Building switched off](#building-switched-off).
 - Setup calls `async_config_entry_first_refresh`, so a failed first poll makes the entry retry (`ConfigEntryNotReady`) and a refused login starts reauthentication, before any entity is created (quality rule `test-before-setup`).
 - After a successful action the coordinator refreshes at once (`async_request_refresh`); there is no optimistic state.
 - The base URL is a constant and the interval is fixed; there is no options flow.
@@ -140,6 +140,16 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - A test checks the entity IDs with the server language set to `en` and to `hu`.
 - Not chosen: translated names with entity IDs set by the integration. Home Assistant discourages setting `entity_id`, and such IDs would not follow a renamed device when the entity IDs are regenerated.
 
+### Building switched off
+
+- `get_building_data` (live capture, 2026-11-07) has `data.disabled`, the building-level switch of the app. While it is true, the app shows "Épület szinten a rendszer kikapcsolva", treats every apartment as switched off and greys out the apartment's switch; the apartment's own `disabled` can still be false.
+- The integration does the same: the climate entities and the system mode show `off` (`SbmApartmentData.switched_off`), and the System switch is unavailable, while its `is_on` stays the apartment's own setting.
+- `SbmFizikusCoordinator` asks `get_building_data` every 10 minutes (`BUILDING_UPDATE_INTERVAL`), not at every poll: the switch is set by hand and rarely changes. In between, a poll keeps the last value. A change is logged once at info level.
+- The building of the apartment is looked up once per load: `get_building_access_rights`, then `get_apartment_access_rights` for each building until one lists the apartment. The outdoor coordinator uses the same lookup, so it is done once for both.
+- The building switch is extra information: when the lookup or `get_building_data` fails, the poll keeps the last known value and logs the cause at debug level instead of failing, so the thermostats stay available. The next check looks the building up again, as it may be gone. A refused login still starts the reauthentication.
+- The answer holds the address of the building, so the debug log leaves it out, like the list of buildings. Diagnostics show only `building_off`.
+- Not chosen: the outdoor values of `get_building_data` (`externalTemperatureDegC`, `externalHumidityPerc`) for the outdoor sensors. They are the ones of `get_building_access_rights`, which the outdoor sensors already poll every 2 minutes.
+
 ### Child lock switch (one per thermostat)
 
 - A `switch` on the device of the thermostat, named `Child lock` (`switch.<room>_child_lock`), `unique_id` `{apartment_id}_{thermostat_id}_child_lock`, entity category config, disabled by default. It locks the buttons of the thermostat with `update_thermostat_settings` and `child_lock`, like the room card of the app, then refreshes.
@@ -176,7 +186,7 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - The names of the bridge's apartment sensors, so the entity IDs are `sensor.sbm_fizikus_outdoor_temperature` and `sensor.sbm_fizikus_outdoor_humidity`. `unique_id` = `{apartment_id}_{key}`.
 - `SbmFizikusOutdoorCoordinator` polls `get_building_access_rights` every 120 s. It has no first refresh at setup, and a coordinator polls only while entities listen to it. A disabled entity is not added, so it never listens; enabling one reloads the config entry, and disabling one removes its listener at once. The first outdoor sensor that is added requests a refresh in the background, so the values do not wait for the first interval and a slow SBM does not hold up the setup of the entry. Not chosen: a longer interval. The history of a week (2026-11-07) shows that SBM updates the outdoor values at least every 2 minutes, so a longer interval would show real changes later; most of the changes are small, like 9.4, 9.6, 9.5 °C.
 - Not chosen: the `async_contexts()` gating of some core integrations (for example `iron_os`, `jvc_projector`); the outdoor data has its own endpoint, so a separate coordinator does the same with the standard listener behaviour. Also not chosen: an option to turn the outdoor weather on; Home Assistant enables optional entities through the entity registry (quality rule `entity-disabled-by-default`).
-- The building of the apartment is not stored. At the first poll, and when the building is no longer listed, the coordinator asks `get_apartment_access_rights` for each building until it finds the apartment. No building with the apartment is an `UpdateFailed` (`building_not_found`). The bridge uses the first building instead.
+- The building of the apartment is not stored. The coordinator of the apartment looks it up once per load, also for [Building switched off](#building-switched-off), and the outdoor coordinator uses that lookup; when the building is no longer listed, it asks `get_apartment_access_rights` for each building again until it finds the apartment. No building with the apartment is an `UpdateFailed` (`building_not_found`) of the outdoor coordinator. The bridge uses the first building instead.
 - An outdoor error makes only the outdoor sensors unavailable, and the thermostat flags do not affect them. A refused login starts reauthentication, like the main coordinator.
 
 ### Availability and logging

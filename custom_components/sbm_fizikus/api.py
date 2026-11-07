@@ -36,8 +36,11 @@ _TOKEN_REFRESH_MARGIN: Final = timedelta(seconds=30)
 _MAX_ERROR_BODY_LENGTH: Final = 300
 _REDACTED: Final = "<redacted>"
 _SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_email"})
-# The answer to a login holds the token, the list of buildings holds their addresses.
-_ANSWERS_NOT_LOGGED: Final = frozenset({"get_jw_token", "get_building_access_rights"})
+# The answer to a login holds the token, the list and the data of the buildings
+# hold their addresses.
+_ANSWERS_NOT_LOGGED: Final = frozenset(
+    {"get_jw_token", "get_building_access_rights", "get_building_data"}
+)
 # The `error` of SBM's answer to a refused login, which comes with status 500 (live
 # captures, 2026-11-07). Any other error of a login does not prove the credentials
 # are wrong, as SBM also answers its own failures with status 500.
@@ -151,6 +154,15 @@ class SbmApartmentData:
     flow_rate: float | None
     # The decoded answer of SBM, for diagnostics.
     raw: Mapping[str, Any] = field(compare=False, repr=False)
+    # The system is switched off for the whole building (`disabled` of
+    # get_building_data). The apartment's own `disabled` can still be false then;
+    # the app treats every apartment as switched off. The coordinator sets it.
+    building_off: bool = False
+
+    @property
+    def switched_off(self) -> bool:
+        """Return whether the system is off, for the apartment or the building."""
+        return self.system_off or self.building_off
 
 
 class SbmClient:
@@ -190,6 +202,12 @@ class SbmClient:
         """Return the apartments of the account in a building."""
         return await self._async_call(
             lambda token: self._async_get_apartments(building_id, token)
+        )
+
+    async def async_get_building_off(self, building_id: int) -> bool:
+        """Return whether the system is switched off for the whole building."""
+        return await self._async_call(
+            lambda token: self._async_get_building_off(building_id, token)
         )
 
     async def async_get_apartment_data(self, apartment_id: int) -> SbmApartmentData:
@@ -352,6 +370,19 @@ class SbmClient:
                 "get_apartment_data", {"apartment_id": apartment_id, "jwt_token": token}
             )
         )
+
+    async def _async_get_building_off(self, building_id: int, token: str) -> bool:
+        """Return `disabled` of the data of a building."""
+        response = await self._async_request(
+            "get_building_data", {"building_id": building_id, "jwt_token": token}
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        disabled = data.get("disabled") if isinstance(data, dict) else None
+        if not isinstance(disabled, bool):
+            raise SbmInvalidResponseError(
+                "SBM returned an invalid response to get_building_data"
+            )
+        return disabled
 
     async def _async_update_thermostat_settings(
         self, thermostat_id: int, setpoint: float, token: str

@@ -57,8 +57,17 @@ class SbmFizikusSystemSwitch(CoordinatorEntity[SbmFizikusCoordinator], SwitchEnt
 
     @property
     @override
+    def available(self) -> bool:
+        """Return False while the system is switched off for the whole building.
+
+        The apartment cannot be switched then, so the app greys out its switch.
+        """
+        return super().available and not self.coordinator.data.building_off
+
+    @property
+    @override
     def is_on(self) -> bool:
-        """Return whether the system is switched on."""
+        """Return whether the system of the apartment is switched on."""
         return not self.coordinator.data.system_off
 
     @override

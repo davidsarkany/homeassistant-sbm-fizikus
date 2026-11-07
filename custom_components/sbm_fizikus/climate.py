@@ -55,8 +55,8 @@ class SbmFizikusClimate(SbmFizikusEntity, ClimateEntity):
     """A thermostat.
 
     The building heats or cools centrally, so the HVAC mode can only be read. It is
-    off only while SBM reports the system as switched off; an unknown mode of SBM is
-    an unknown state, never off.
+    off only while SBM reports the system as switched off, for the apartment or the
+    whole building; an unknown mode of SBM is an unknown state, never off.
     """
 
     # The main feature of the device, so it takes the device name, like the bridge.
@@ -76,14 +76,14 @@ class SbmFizikusClimate(SbmFizikusEntity, ClimateEntity):
     @override
     def hvac_modes(self) -> list[HVACMode]:
         """Return heat and cool, and off while the system is switched off."""
-        return _HVAC_MODES_OFF if self.coordinator.data.system_off else _HVAC_MODES_ON
+        return _HVAC_MODES_OFF if self.coordinator.data.switched_off else _HVAC_MODES_ON
 
     @property
     @override
     def hvac_mode(self) -> HVACMode | None:
         """Return off, or the mode of the building: heat or cool, None when unknown."""
         data = self.coordinator.data
-        if data.system_off:
+        if data.switched_off:
             return HVACMode.OFF
         return _HVAC_MODES.get(data.operation_mode)
 
@@ -91,7 +91,7 @@ class SbmFizikusClimate(SbmFizikusEntity, ClimateEntity):
     @override
     def hvac_action(self) -> HVACAction | None:
         """Return whether the thermostat heats, cools, is idle, or is off."""
-        if self.coordinator.data.system_off:
+        if self.coordinator.data.switched_off:
             return HVACAction.OFF
         if not self.thermostat.active:
             return HVACAction.IDLE
