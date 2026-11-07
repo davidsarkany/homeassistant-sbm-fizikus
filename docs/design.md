@@ -54,9 +54,9 @@ Per thermostat: `ID`, `name` (may be null), `measuredTempDegC`, `measuredHumPerc
 Known facts:
 
 - `pwhash` is the lowercase hex SHA-256 of the UTF-8 password.
-- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40 s (live captures, 2026-11-04).
+- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40–80 s, and the child lock with `childLockCommand` and `childLock`, within about 30–60 s (live captures, 2026-11-04 and 2026-11-07).
 - SBM keeps setpoints with 0.1 °C resolution, for example 22.3.
-- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reports `communicationActiveRelayModule: false`, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
+- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reported `communicationActiveRelayModule: false` in one capture and `true` in another, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
 - Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`.
 - 401 and 403 mean the token was rejected.
 - A refused login is HTTP 500 with `{"error": "invalid password"}` or `{"error": "user not found"}` (live captures, 2026-11-07), not a 401 or 403.
@@ -153,7 +153,7 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 ### Child lock switch (one per thermostat)
 
 - A `switch` on the device of the thermostat, named `Child lock` (`switch.<room>_child_lock`), `unique_id` `{apartment_id}_{thermostat_id}_child_lock`, entity category config, disabled by default. It locks the buttons of the thermostat with `update_thermostat_settings` and `child_lock`, like the room card of the app, then refreshes.
-- On is `childLockCommand` while a change is pending, otherwise `childLock`, like the app. SBM reports `null` for a lock that was never set (live capture, 2026-11-07: every room), which is off.
+- On is `childLockCommand` while a change is pending, otherwise `childLock`, like the app. SBM reports `null` for a lock that was never set (live capture, 2026-11-07: every room), which is off; after the first unlock it is `false`.
 - Availability like the other entities of the thermostat. The answer must name the thermostat (`thermostat_id`), for the target temperature too.
 - Not chosen: the settings page of the app, which switches every room and sends the current target temperature with it; a lock per room is what the room card does, and one switch per room covers both.
 
