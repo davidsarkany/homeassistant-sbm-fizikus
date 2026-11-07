@@ -2,7 +2,7 @@
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_USERNAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -55,15 +55,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: SbmFizikusConfigEntry) -
 
     # The thermostats link to the apartment with its device id, so it must exist
     # before their entities are added.
-    apartment_device = dr.async_get(hass).async_get_or_create(
+    device_registry = dr.async_get(hass)
+    apartment_device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, apartment_device_identifier(coordinator.apartment_id))},
         manufacturer=MANUFACTURER,
         model=APARTMENT_MODEL,
         name=APARTMENT_DEVICE_NAME,
-        # Updated at every setup; a new firmware shows up after a reload or restart.
         sw_version=coordinator.data.firmware_version,
     )
+
+    shown_firmware_version = coordinator.data.firmware_version
+
+    @callback
+    def async_update_firmware_version() -> None:
+        """Show a new firmware of the device at once, without a reload.
+
+        A poll without a firmware version keeps the known one, so a value missing
+        from one answer does not clear it.
+        """
+        nonlocal shown_firmware_version
+        firmware_version = coordinator.data.firmware_version
+        if firmware_version is None or firmware_version == shown_firmware_version:
+            return
+        shown_firmware_version = firmware_version
+        device_registry.async_update_device(
+            apartment_device.id, sw_version=firmware_version
+        )
+
+    entry.async_on_unload(coordinator.async_add_listener(async_update_firmware_version))
     entry.runtime_data = SbmFizikusData(
         coordinator,
         # Polls only for enabled outdoor sensors, so it has no first refresh here.

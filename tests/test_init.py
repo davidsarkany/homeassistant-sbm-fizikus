@@ -55,6 +55,34 @@ async def test_setup_and_unload(
     assert config_entry.state is ConfigEntryState.NOT_LOADED
 
 
+async def test_new_firmware_is_shown_without_reload(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    await setup_integration(hass, config_entry)
+    coordinator = config_entry.runtime_data.coordinator
+
+    def firmware_version() -> str | None:
+        device = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "123"), config_entry.entry_id
+        )
+        assert device is not None
+        return device.sw_version
+
+    sbm.apartment_data["fwVer"] = "1.2.12"
+    await coordinator.async_refresh()
+
+    assert firmware_version() == "1.2.12"
+
+    # An answer without a firmware version keeps the known one.
+    sbm.apartment_data["fwVer"] = None
+    await coordinator.async_refresh()
+
+    assert firmware_version() == "1.2.12"
+
+
 async def test_setup_logs_why_sbm_cannot_be_reached(
     hass: HomeAssistant,
     sbm: SbmStub,

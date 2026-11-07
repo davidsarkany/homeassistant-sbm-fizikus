@@ -45,7 +45,7 @@ There are no other options. When SBM refuses the saved login later, for example 
 
 ## Entities
 
-Every thermostat is a device named after its room in SBM, linked to an **SBM Fizikus** device for the apartment. The SBM Fizikus device shows the firmware version that SBM reports; a new version shows up after the integration is reloaded or Home Assistant is restarted.
+Every thermostat is a device named after its room in SBM, linked to an **SBM Fizikus** device for the apartment. The SBM Fizikus device shows the firmware version that SBM reports, a new version at the next poll.
 
 | Entity | Enabled by default | Description |
 |---|---|---|

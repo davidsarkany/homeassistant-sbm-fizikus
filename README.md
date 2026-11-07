@@ -45,7 +45,7 @@ Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezés
 
 ## Entitások
 
-Minden termosztát egy eszköz, amely az SBM-ben megadott helyiségről kapja a nevét, és a lakás **SBM Fizikus** eszközéhez kapcsolódik. Az SBM Fizikus eszköz az SBM által jelentett firmware-verziót mutatja; az új verzió az integráció újratöltése vagy a Home Assistant újraindítása után jelenik meg.
+Minden termosztát egy eszköz, amely az SBM-ben megadott helyiségről kapja a nevét, és a lakás **SBM Fizikus** eszközéhez kapcsolódik. Az SBM Fizikus eszköz az SBM által jelentett firmware-verziót mutatja, az új verziót a következő lekérdezéskor.
 
 Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról)), ezért a Home Assistantban is az angol nevük látszik.
 
