@@ -135,6 +135,53 @@ async def test_debug_log_hides_the_answer_to_a_failed_login(
     assert "secret-answer" not in caplog.text
 
 
+@pytest.mark.parametrize(
+    "operation", ["get_building_access_rights", "get_building_data"]
+)
+@pytest.mark.parametrize(
+    ("status", "answer", "error_type"),
+    [
+        pytest.param(
+            503,
+            '{"error": "Failure at Teszt utca"}',
+            SbmApiError,
+            id="http-error",
+        ),
+        pytest.param(
+            200,
+            '{"address": "Teszt utca"',
+            SbmInvalidResponseError,
+            id="invalid-json",
+        ),
+    ],
+)
+async def test_building_errors_hide_the_address(
+    client: SbmClient,
+    sbm: SbmStub,
+    caplog: pytest.LogCaptureFixture,
+    operation: str,
+    status: int,
+    answer: str,
+    error_type: type[SbmApiError | SbmInvalidResponseError],
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.sbm_fizikus")
+    sbm.queue(operation, status=status, text=answer)
+    request = {
+        "get_building_access_rights": client.async_get_buildings,
+        "get_building_data": lambda: client.async_get_building_off(24),
+    }[operation]
+
+    with pytest.raises(error_type) as err:
+        await request()
+
+    assert operation in str(err.value)
+    assert str(err.value).endswith(": <redacted>")
+    assert "Teszt utca" not in str(err.value)
+    assert "Teszt utca" not in caplog.text
+    assert f"SBM answer to {operation}, status {status}" in caplog.text
+    assert "SBM call failed:" in caplog.text
+
+
 @pytest.mark.parametrize("system_off", [True, False])
 async def test_set_system_off_request_body(
     client: SbmClient, sbm: SbmStub, system_off: bool

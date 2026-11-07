@@ -37,7 +37,7 @@ _MAX_ERROR_BODY_LENGTH: Final = 300
 _REDACTED: Final = "<redacted>"
 _SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_email"})
 # The answer to a login holds the token, the list and the data of the buildings
-# hold their addresses.
+# hold their addresses. Leave these answers out of logs and error messages alike.
 _ANSWERS_NOT_LOGGED: Final = frozenset(
     {"get_jw_token", "get_building_access_rights", "get_building_data"}
 )
@@ -289,9 +289,7 @@ class SbmClient:
         """Log in and return the token and when it expires."""
         payload = {"username_or_email": self._username, "pwhash": self._pwhash}
         try:
-            response = await self._async_request(
-                "get_jw_token", payload, redact_response=True
-            )
+            response = await self._async_request("get_jw_token", payload)
         except SbmApiError as err:
             # A route, request or server error does not prove the credentials are
             # wrong, only a rejection or one of SBM's refusals does.
@@ -429,13 +427,7 @@ class SbmClient:
                 "SBM returned an invalid response to update_apartment_settings"
             )
 
-    async def _async_request(
-        self,
-        operation: str,
-        payload: Mapping[str, Any],
-        *,
-        redact_response: bool = False,
-    ) -> Any:
+    async def _async_request(self, operation: str, payload: Mapping[str, Any]) -> Any:
         """Send an operation and return the decoded JSON answer."""
         # Compact JSON in the key order of the bridge, so the bodies are the same.
         body = json.dumps(
@@ -463,12 +455,13 @@ class SbmClient:
                 f"SBM returned an undecodable response to {operation}"
             ) from err
 
+        redact_response = operation in _ANSWERS_NOT_LOGGED
         _LOGGER.debug(
             "SBM answer to %s, status %s in %.3f s: %s",
             operation,
             status,
             time.monotonic() - started,
-            _REDACTED if operation in _ANSWERS_NOT_LOGGED else text,
+            _REDACTED if redact_response else text,
         )
         shown = _REDACTED if redact_response else _truncate(text)
         if not HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES:

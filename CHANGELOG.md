@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: building API responses are also redacted in error messages, so building addresses stay out of logs when a request fails or returns invalid JSON.
+
 ## 0.2.0 (2026-11-07)
 
 - Fixed: a wrong password or username is recognized. SBM refuses a login with status 500, which the integration took for an outage: the setup said it could not connect, and after a password change the entities stayed unavailable without asking for the new password. Now the setup says the username or password is invalid, and Home Assistant asks for the password again. Other failures of SBM still count as an outage.
