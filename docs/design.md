@@ -68,7 +68,7 @@ Known facts:
 | Module | Role |
 |---|---|
 | `api.py` | The SBM client. It does not depend on Home Assistant. It uses Home Assistant's shared `aiohttp` session, a 30 s request timeout and an `asyncio.Lock` around the login. |
-| `coordinator.py` | `SbmFizikusCoordinator` polls the apartment; `SbmFizikusOutdoorCoordinator` polls the outdoor weather; `SbmFizikusData` is the runtime data of a config entry. |
+| `coordinator.py` | `SbmFizikusCoordinator` polls the apartment and runs the actions of the entities with their error handling (`async_run_action`); `SbmFizikusOutdoorCoordinator` polls the outdoor weather; `SbmFizikusData` is the runtime data of a config entry. |
 | `entity.py` | The base entity of a thermostat, and the helper that adds the entities of new thermostats. |
 | `climate.py`, `sensor.py`, `switch.py` | The platforms. |
 | `config_flow.py` | Setup, apartment choice and reauthentication. |

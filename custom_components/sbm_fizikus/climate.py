@@ -1,5 +1,6 @@
 """Climate entities of the SBM Fizikus thermostats."""
 
+import math
 from typing import Any, override
 
 from homeassistant.components.climate import (
@@ -16,16 +17,10 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import (
-    OPERATION_MODE_COOLING,
-    OPERATION_MODE_HEATING,
-    SbmAuthError,
-    SbmError,
-    SbmThermostat,
-)
+from .api import OPERATION_MODE_COOLING, OPERATION_MODE_HEATING, SbmThermostat
 from .const import DOMAIN, LOGGER, MAX_TEMPERATURE, MIN_TEMPERATURE, TEMPERATURE_STEP
 from .coordinator import SbmFizikusConfigEntry, SbmFizikusData
 from .entity import SbmFizikusEntity, async_add_thermostat_entities
@@ -142,25 +137,17 @@ class SbmFizikusClimate(SbmFizikusEntity, ClimateEntity):
         """Set the target temperature; SBM rounds it to 0.1 °C."""
         if (hvac_mode := kwargs.get(ATTR_HVAC_MODE)) is not None:
             await self.async_set_hvac_mode(hvac_mode)
-        try:
-            await self.coordinator.client.async_set_target_temperature(
-                self._thermostat_id, kwargs[ATTR_TEMPERATURE]
-            )
-        except ValueError as err:
+        temperature = kwargs[ATTR_TEMPERATURE]
+        # Home Assistant checks the range, which NaN passes.
+        if not math.isfinite(temperature):
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="invalid_temperature"
-            ) from err
-        except SbmAuthError as err:
-            self.coordinator.config_entry.async_start_reauth(self.hass)
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="auth_failed"
-            ) from err
-        except SbmError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_temperature_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            )
         # SBM reports the new target temperature right away as pending, in
         # temperatureSetpointCommandDegC, until the thermostat confirms it.
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_run_action(
+            self.coordinator.client.async_set_target_temperature(
+                self._thermostat_id, temperature
+            ),
+            "set_temperature_failed",
+        )

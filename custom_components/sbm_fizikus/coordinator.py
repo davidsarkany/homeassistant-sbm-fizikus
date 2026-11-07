@@ -6,7 +6,7 @@ from typing import override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import SbmApartmentData, SbmAuthError, SbmBuilding, SbmClient, SbmError
@@ -54,6 +54,31 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         self.client = client
         self.apartment_id: int = config_entry.data[CONF_APARTMENT_ID]
         self._connected = True
+
+    async def async_run_action(
+        self, action: Awaitable[None], translation_key: str
+    ) -> None:
+        """Send an action of an entity to SBM, then fetch the new state.
+
+        A refused login starts the reauthentication. Every failure is raised as a
+        translated HomeAssistantError: `auth_failed`, or the given key with the
+        cause in its `error` placeholder. SBM reports the new value right away as
+        pending, so the state is fetched at once, with no optimistic value.
+        """
+        try:
+            await action
+        except SbmAuthError as err:
+            self.config_entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="auth_failed"
+            ) from err
+        except SbmError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=translation_key,
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.async_request_refresh()
 
     @override
     async def _async_update_data(self) -> SbmApartmentData:

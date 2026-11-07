@@ -4,12 +4,10 @@ from typing import Any, override
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import SbmAuthError, SbmError
 from .const import DOMAIN, apartment_device_identifier
 from .coordinator import SbmFizikusConfigEntry, SbmFizikusCoordinator, SbmFizikusData
 
@@ -67,19 +65,9 @@ class SbmFizikusSystemSwitch(CoordinatorEntity[SbmFizikusCoordinator], SwitchEnt
     async def _async_switch(self, *, system_off: bool) -> None:
         """Switch the system, then fetch its new state."""
         coordinator = self.coordinator
-        try:
-            await coordinator.client.async_set_system_off(
+        await coordinator.async_run_action(
+            coordinator.client.async_set_system_off(
                 coordinator.apartment_id, system_off=system_off
-            )
-        except SbmAuthError as err:
-            coordinator.config_entry.async_start_reauth(self.hass)
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="auth_failed"
-            ) from err
-        except SbmError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="switch_system_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await coordinator.async_request_refresh()
+            ),
+            "switch_system_failed",
+        )
