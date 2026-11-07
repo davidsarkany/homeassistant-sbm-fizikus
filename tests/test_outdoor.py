@@ -318,7 +318,7 @@ async def test_failed_poll_and_recovery(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     await setup_integration(hass, config_entry)
-    sbm.queue(BUILDINGS, status=500, text="Internal error")
+    sbm.queue(BUILDINGS, status=500, text="Internal error at Teszt utca")
 
     await refresh(config_entry)
 
@@ -329,8 +329,9 @@ async def test_failed_poll_and_recovery(
     assert (
         "Error fetching sbm_fizikus outdoor data: Fetching the data from SBM failed: "
         "SBM request get_building_access_rights failed with status 500 "
-        "(Internal Server Error): Internal error"
+        "(Internal Server Error): <redacted>"
     ) in caplog.text
+    assert "Teszt utca" not in caplog.text
     recovered = "The outdoor weather can be fetched from SBM again"
     assert recovered not in caplog.text
 
