@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.4 (2026-11-07)
+## 0.2.0 (2026-11-07)
 
 - Fixed: a wrong password or username is recognized. SBM refuses a login with status 500, which the integration took for an outage: the setup said it could not connect, and after a password change the entities stayed unavailable without asking for the new password. Now the setup says the username or password is invalid, and Home Assistant asks for the password again. Other failures of SBM still count as an outage.
 - Fixed: the dew point is rounded to 0.1 °C (`13.0 °C`, not `13.04477696992492 °C`). SBM sends it with full precision. The values recorded before stay as they are.
