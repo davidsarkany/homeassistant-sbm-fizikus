@@ -4,8 +4,6 @@
 
 A Home Assistant integration for SBM Fizikus (SBM-Verting) heating and cooling systems. It connects to the SBM Fizikus cloud with your SBM account, shows every thermostat of your apartment as a climate entity, and lets you set their target temperatures.
 
-It is the native alternative to the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge: no bridge and no MQTT broker are needed, and the entities keep the entity IDs of the bridge, so you can [switch](#switching-from-the-mqtt-bridge) without losing automations, dashboards or history.
-
 ## Requirements
 
 - Home Assistant 2026.11.0 or newer.
@@ -47,6 +45,8 @@ There are no other options. When SBM refuses the saved login later, for example 
 
 Every thermostat is a device named after its room in SBM, linked to an **SBM Fizikus** device for the apartment. The SBM Fizikus device shows the firmware version that SBM reports, a new version at the next poll.
 
+The names of all entities stay in English in every language. Home Assistant builds the entity IDs of new entities from their names in the language of the server, so the entity IDs are the same on every server, like `climate.living_room` and `sensor.living_room_humidity`.
+
 | Entity | Enabled by default | Description |
 |---|---|---|
 | Climate | yes | Measured temperature and humidity, target temperature, heating or cooling, and whether the thermostat is active. |
@@ -69,7 +69,7 @@ The **SBM Fizikus** device of the apartment has the switch of the system, and th
 | Flow rate | no | Water flowing through the apartment, in l/h. |
 
 - The **target temperature** can be set between 5 and 35 °C. SBM keeps it with 0.1 °C resolution: the card steps by 0.5 °C, and other values (for example from an automation) are rounded to 0.1 °C.
-- **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, like with the bridge, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. When the system is switched off for the whole building (in the app: "Épület szinten a rendszer kikapcsolva"), the mode is `off` too, and the **System** switch is unavailable, as the apartment cannot be switched then, like in the app. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
+- **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. When the system is switched off for the whole building (in the app: "Épület szinten a rendszer kikapcsolva"), the mode is `off` too, and the **System** switch is unavailable, as the apartment cannot be switched then, like in the app. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
 - The **outdoor sensors** need an extra request to SBM, so SBM is asked for the outdoor weather only while at least one of them is enabled. Enabling one reloads the integration after about 30 seconds. They do not depend on the thermostats: they stay available when SBM reports the thermostats as disconnected, and the thermostats stay available when the outdoor weather cannot be fetched.
 - The entities are **unavailable** when SBM cannot be reached, when SBM reports the thermostats as disconnected, like the connection indicator of the app, or when a thermostat is missing from the answer of SBM.
 
@@ -96,22 +96,6 @@ automation:
         data:
           temperature: 21
 ```
-
-## Switching from the MQTT bridge
-
-The integration gives its entities the same names as the bridge, so Home Assistant gives them the same entity IDs, like `climate.living_room` and `sensor.living_room_humidity`. Automations, dashboards and the recorder history keep working.
-
-1. Stop the bridge. Otherwise it publishes its MQTT discovery again.
-2. In Home Assistant, go to **Settings** > **Devices & services** > **MQTT**, and delete the SBM Fizikus devices (the thermostats and the SBM Fizikus device).
-3. [Set up](#setup) the SBM Fizikus integration.
-4. Enable the sensors you used with the bridge: apart from the humidity, they are disabled by default, like in the bridge.
-
-What does not carry over:
-
-- Changes you made to the old entities and devices in Home Assistant: other names or entity IDs, areas, icons, labels. Entity IDs you changed are not matched; the new entities get the default ones.
-- The system mode of the SBM Fizikus device: the integration does not have it.
-
-The names of all entities stay in English in every language, because Home Assistant builds the entity IDs of new entities from their names in the language of the server. So the entity IDs are the same on every server, and those of the bridge's entities carry over.
 
 ## Known limitations
 

@@ -4,8 +4,6 @@
 
 Home Assistant-integráció SBM Fizikus (SBM-Verting) fűtési és hűtési rendszerekhez. Az SBM-fiókoddal csatlakozik az SBM Fizikus felhőhöz, a lakás minden termosztátját klíma-entitásként jeleníti meg, és beállíthatod velük a célhőmérsékletet.
 
-Az [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) híd natív alternatívája: nem kell hozzá se híd, se MQTT-bróker, és az entitások megtartják a híd entitásazonosítóit, így az automatizálások, irányítópultok és az előzmények elvesztése nélkül [válthatsz](#váltás-az-mqtt-hídról).
-
 ## Követelmények
 
 - Home Assistant 2026.11.0 vagy újabb.
@@ -47,7 +45,7 @@ Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezés
 
 Minden termosztát egy eszköz, amely az SBM-ben megadott helyiségről kapja a nevét, és a lakás **SBM Fizikus** eszközéhez kapcsolódik. Az SBM Fizikus eszköz az SBM által jelentett firmware-verziót mutatja, az új verziót a következő lekérdezéskor.
 
-Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról)), ezért a Home Assistantban is az angol nevük látszik.
+Az entitások neve minden nyelven angol, ezért a Home Assistantban is az angol nevük látszik. A Home Assistant az új entitások azonosítóját a szerver nyelvén megadott nevükből képzi, így az entitásazonosítók minden szerveren ugyanazok, például `climate.living_room` és `sensor.living_room_humidity`.
 
 | Entitás | Alapból engedélyezve | Leírás |
 |---|---|---|
@@ -71,7 +69,7 @@ A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület 
 | Flow rate (átfolyás) | nem | A lakáson átfolyó víz mennyisége, l/h-ban. |
 
 - A **célhőmérséklet** 5 és 35 °C között állítható. Az SBM 0,1 °C felbontással tárolja: a kártya 0,5 °C-os lépésekben állít, más értékeket (például egy automatizálásból) 0,1 °C-ra kerekít.
-- A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, ahogy a hídnál sem; így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. Ha a rendszert az egész épületre kikapcsolják (az alkalmazásban: „Épület szinten a rendszer kikapcsolva”), a mód szintén `off`, a **System** kapcsoló pedig nem elérhető, mert a lakás ilyenkor nem kapcsolható, ahogy az alkalmazásban sem. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
+- A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. Ha a rendszert az egész épületre kikapcsolják (az alkalmazásban: „Épület szinten a rendszer kikapcsolva”), a mód szintén `off`, a **System** kapcsoló pedig nem elérhető, mert a lakás ilyenkor nem kapcsolható, ahogy az alkalmazásban sem. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
 - A **külső szenzorokhoz** egy további kérés kell az SBM felé, ezért az integráció csak akkor kérdezi le a külső időjárást, ha legalább az egyik engedélyezve van. Az engedélyezés után kb. 30 másodperccel az integráció újratöltődik. Nem függenek a termosztátoktól: elérhetők maradnak, ha az SBM a termosztátokat leválasztottnak jelenti, és a termosztátok is elérhetők maradnak, ha a külső időjárást nem sikerül lekérni.
 - Az entitások **nem elérhetők**, ha az SBM nem érhető el, ha az SBM a termosztátokat leválasztottnak jelenti (ezt mutatja az alkalmazás kapcsolatjelzője is), vagy ha egy termosztát hiányzik az SBM válaszából.
 
@@ -98,22 +96,6 @@ automation:
         data:
           temperature: 21
 ```
-
-## Váltás az MQTT-hídról
-
-Az integráció ugyanazokat a neveket adja az entitásainak, mint a híd, így a Home Assistant ugyanazokat az entitásazonosítókat adja nekik, például `climate.living_room` és `sensor.living_room_humidity`. Az automatizálások, az irányítópultok és a rögzítő előzményei tovább működnek.
-
-1. Állítsd le a hidat. Különben újra közzéteszi az MQTT-felfedezést.
-2. A Home Assistantban menj a **Beállítások** > **Eszközök és szolgáltatások** > **MQTT** oldalra, és töröld az SBM Fizikus eszközöket (a termosztátokat és az SBM Fizikus eszközt).
-3. [Állítsd be](#beállítás) az SBM Fizikus integrációt.
-4. Engedélyezd a hídnál használt szenzorokat: a páratartalom kivételével alapból le vannak tiltva, ahogy a hídnál is.
-
-Ami nem kerül át:
-
-- A régi entitásokon és eszközökön a Home Assistantban végzett módosítások: más nevek vagy entitásazonosítók, területek, ikonok, címkék. A megváltoztatott entitásazonosítókat nem veszi át; az új entitások az alapértelmezettet kapják.
-- Az SBM Fizikus eszköz rendszermódja: ez az integrációban nincs meg.
-
-Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új entitások azonosítóját a szerver nyelvén megadott nevükből képzi. Így az entitásazonosítók minden szerveren ugyanazok, és a híd entitásainak azonosítói átkerülnek.
 
 ## Ismert korlátozások
 
