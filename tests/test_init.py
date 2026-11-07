@@ -48,11 +48,46 @@ async def test_setup_and_unload(
         len(dr.async_entries_for_config_entry(device_registry, config_entry.entry_id))
         == 5
     )
-    # Setup polls only the apartment data, after the login.
-    assert sbm.operations == ["get_jw_token", "get_apartment_data"]
+    # Setup polls the apartment data, after the login, and whether the building is
+    # switched off, after looking up the building of the apartment.
+    assert sbm.operations == [
+        "get_jw_token",
+        "get_apartment_data",
+        "get_building_access_rights",
+        "get_apartment_access_rights",
+        "get_building_data",
+    ]
 
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_new_firmware_is_shown_without_reload(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    await setup_integration(hass, config_entry)
+    coordinator = config_entry.runtime_data.coordinator
+
+    def firmware_version() -> str | None:
+        device = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "123"), config_entry.entry_id
+        )
+        assert device is not None
+        return device.sw_version
+
+    sbm.apartment_data["fwVer"] = "1.2.12"
+    await coordinator.async_refresh()
+
+    assert firmware_version() == "1.2.12"
+
+    # An answer without a firmware version keeps the known one.
+    sbm.apartment_data["fwVer"] = None
+    await coordinator.async_refresh()
+
+    assert firmware_version() == "1.2.12"
 
 
 async def test_setup_logs_why_sbm_cannot_be_reached(
@@ -101,6 +136,16 @@ async def test_setup_logs_why_sbm_cannot_be_reached(
         ("get_jw_token", {"status": 500}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 404}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 401}, ConfigEntryState.SETUP_ERROR),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "invalid password"}},
+            ConfigEntryState.SETUP_ERROR,
+        ),
+        (
+            "get_jw_token",
+            {"status": 500, "json_body": {"error": "Internal server error"}},
+            ConfigEntryState.SETUP_RETRY,
+        ),
     ],
 )
 async def test_setup_failure(
@@ -148,12 +193,16 @@ async def test_entity_ids_match_the_bridge(
         "sensor.sbm_fizikus_outdoor_temperature",
         "sensor.sbm_fizikus_outdoor_humidity",
         "switch.sbm_fizikus_system",
+        "sensor.sbm_fizikus_forward_water_temperature",
+        "sensor.sbm_fizikus_return_water_temperature",
+        "sensor.sbm_fizikus_flow_rate",
     } | {
         entity_id
         for room in ROOMS
         for entity_id in [
             f"climate.{room}",
             f"sensor.{room}_dew_point",
+            f"switch.{room}_child_lock",
             *(f"sensor.{room}_{suffix}" for suffix in BRIDGE_SENSORS),
         ]
     }

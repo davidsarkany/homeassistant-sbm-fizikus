@@ -36,10 +36,19 @@ _TOKEN_REFRESH_MARGIN: Final = timedelta(seconds=30)
 _MAX_ERROR_BODY_LENGTH: Final = 300
 _REDACTED: Final = "<redacted>"
 _SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_email"})
-# The answer to a login holds the token, the list of buildings holds their addresses.
-_ANSWERS_NOT_LOGGED: Final = frozenset({"get_jw_token", "get_building_access_rights"})
+# The answer to a login holds the token, the list and the data of the buildings
+# hold their addresses.
+_ANSWERS_NOT_LOGGED: Final = frozenset(
+    {"get_jw_token", "get_building_access_rights", "get_building_data"}
+)
+# The `error` of SBM's answer to a refused login, which comes with status 500 (live
+# captures, 2026-11-07). Any other error of a login does not prove the credentials
+# are wrong, as SBM also answers its own failures with status 500.
+_LOGIN_REFUSALS: Final = frozenset({"invalid password", "user not found"})
 # What SBM reports for an outdoor value it does not know.
 _UNKNOWN_OUTDOOR_VALUE: Final = -1.0
+# What SBM reports for a value of a water channel that is not connected.
+_NOT_CONNECTED: Final = -1.0
 
 
 class SbmError(Exception):
@@ -53,10 +62,14 @@ class SbmConnectionError(SbmError):
 class SbmApiError(SbmError):
     """SBM answered with a status code that is not a success."""
 
-    def __init__(self, status: int, message: str) -> None:
-        """Initialize the error with the HTTP status code."""
+    def __init__(
+        self, status: int, message: str, *, sbm_error: str | None = None
+    ) -> None:
+        """Initialize the error with the HTTP status code and SBM's `error`."""
         super().__init__(message)
         self.status = status
+        # The `error` of the answer, when it is a JSON object with a string `error`.
+        self.sbm_error = sbm_error
 
     @property
     def is_authentication_failure(self) -> bool:
@@ -109,8 +122,14 @@ class SbmThermostat:
     temperature: float | None
     # The thermostats measure whole percents, and SBM sends them as integers.
     humidity: int | None
+    # SBM computes it with full precision, like 13.04477696992492; it is rounded to
+    # 0.1 °C, the resolution of the measured temperature.
     dew_point: float | None
     target_temperature: float | None
+    # The buttons of the thermostat are locked: `childLockCommand` while a change is
+    # pending, else `childLock`, like the app. SBM reports null for a thermostat
+    # whose lock was never set (live capture, 2026-11-07), which is unlocked.
+    child_lock: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,8 +146,23 @@ class SbmApartmentData:
     thermostats: Mapping[int, SbmThermostat]
     # The firmware of the SBM Fizikus device of the apartment, None when not reported.
     firmware_version: str | None
+    # The water from the heat center, the water going back, and the flow through the
+    # apartment, on the first channel; the values of the "Statisztika" page of the
+    # app. None when not reported or not connected (-1).
+    forward_water_temperature: float | None
+    return_water_temperature: float | None
+    flow_rate: float | None
     # The decoded answer of SBM, for diagnostics.
     raw: Mapping[str, Any] = field(compare=False, repr=False)
+    # The system is switched off for the whole building (`disabled` of
+    # get_building_data). The apartment's own `disabled` can still be false then;
+    # the app treats every apartment as switched off. The coordinator sets it.
+    building_off: bool = False
+
+    @property
+    def switched_off(self) -> bool:
+        """Return whether the system is off, for the apartment or the building."""
+        return self.system_off or self.building_off
 
 
 class SbmClient:
@@ -170,6 +204,12 @@ class SbmClient:
             lambda token: self._async_get_apartments(building_id, token)
         )
 
+    async def async_get_building_off(self, building_id: int) -> bool:
+        """Return whether the system is switched off for the whole building."""
+        return await self._async_call(
+            lambda token: self._async_get_building_off(building_id, token)
+        )
+
     async def async_get_apartment_data(self, apartment_id: int) -> SbmApartmentData:
         """Return the state of an apartment and its thermostats."""
         return await self._async_call(
@@ -184,6 +224,14 @@ class SbmClient:
         await self._async_call(
             lambda token: self._async_update_thermostat_settings(
                 thermostat_id, setpoint, token
+            )
+        )
+
+    async def async_set_child_lock(self, thermostat_id: int, *, locked: bool) -> None:
+        """Lock or unlock the buttons of a thermostat, like the room card of the app."""
+        await self._async_call(
+            lambda token: self._async_update_thermostat(
+                thermostat_id, {"child_lock": locked}, token
             )
         )
 
@@ -245,7 +293,12 @@ class SbmClient:
                 "get_jw_token", payload, redact_response=True
             )
         except SbmApiError as err:
-            # A route or request error does not prove the credentials are wrong.
+            # A route, request or server error does not prove the credentials are
+            # wrong, only a rejection or one of SBM's refusals does.
+            if err.sbm_error in _LOGIN_REFUSALS:
+                raise SbmAuthError(
+                    f"SBM refused the login with status {err.status}: {err.sbm_error}"
+                ) from err
             if err.is_authentication_failure:
                 raise SbmAuthError(
                     f"SBM refused the login with status {err.status}"
@@ -318,19 +371,39 @@ class SbmClient:
             )
         )
 
+    async def _async_get_building_off(self, building_id: int, token: str) -> bool:
+        """Return `disabled` of the data of a building."""
+        response = await self._async_request(
+            "get_building_data", {"building_id": building_id, "jwt_token": token}
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        disabled = data.get("disabled") if isinstance(data, dict) else None
+        if not isinstance(disabled, bool):
+            raise SbmInvalidResponseError(
+                "SBM returned an invalid response to get_building_data"
+            )
+        return disabled
+
     async def _async_update_thermostat_settings(
         self, thermostat_id: int, setpoint: float, token: str
     ) -> None:
         """Send a new target temperature."""
+        await self._async_update_thermostat(
+            thermostat_id, {"temp_setpoint_degC": setpoint}, token
+        )
+
+    async def _async_update_thermostat(
+        self, thermostat_id: int, settings: Mapping[str, Any], token: str
+    ) -> None:
+        """Send settings of a thermostat, and check that SBM took them for it."""
         response = await self._async_request(
             "update_thermostat_settings",
-            {
-                "thermostat_id": thermostat_id,
-                "temp_setpoint_degC": setpoint,
-                "jwt_token": token,
-            },
+            {"thermostat_id": thermostat_id, **settings, "jwt_token": token},
         )
-        if not isinstance(response, dict) or not _is_int(response.get("thermostat_id")):
+        answered_id = (
+            response.get("thermostat_id") if isinstance(response, dict) else None
+        )
+        if not _is_int(answered_id) or answered_id != thermostat_id:
             raise SbmInvalidResponseError(
                 "SBM returned an invalid response to update_thermostat_settings"
             )
@@ -403,6 +476,7 @@ class SbmClient:
                 status,
                 f"SBM request {operation} failed with status "
                 f"{_describe_status(status)}: {shown}",
+                sbm_error=_error_field(text),
             )
         try:
             return json.loads(text)
@@ -410,6 +484,17 @@ class SbmClient:
             raise SbmInvalidResponseError(
                 f"SBM returned an invalid response to {operation}: {shown}"
             ) from err
+
+
+def _error_field(text: str) -> str | None:
+    """Return the `error` of an answer such as {"error": "invalid password"}."""
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return None
+    if isinstance(answer, dict) and isinstance(error := answer.get("error"), str):
+        return error
+    return None
 
 
 def _parse_rows(response: Any, operation: str, *, id_index: int) -> list[list[Any]]:
@@ -478,6 +563,13 @@ def _parse_apartment_data(response: Any) -> SbmApartmentData:
             for thermostat in thermostats
         },
         firmware_version=_optional_text(response.get("fwVer")),
+        forward_water_temperature=_optional_connected_value(
+            response.get("forwardWaterTemperature1DegC")
+        ),
+        return_water_temperature=_optional_connected_value(
+            response.get("returningWaterTemperature1DegC")
+        ),
+        flow_rate=_optional_connected_value(response.get("flowRateLiterPerHour1")),
         raw=response,
     )
 
@@ -494,9 +586,18 @@ def _parse_thermostat(data: Mapping[str, Any]) -> SbmThermostat:
         active=data.get("active") is True,
         temperature=_optional_float(data.get("measuredTempDegC")),
         humidity=_optional_whole_number(data.get("measuredHumPerc")),
-        dew_point=_optional_float(data.get("dewPointDegC")),
+        dew_point=_optional_tenths(data.get("dewPointDegC")),
         target_temperature=_target_temperature(data),
+        child_lock=_child_lock(data),
     )
+
+
+def _child_lock(data: Mapping[str, Any]) -> bool:
+    """Return whether the buttons are locked, a pending change first, like the app."""
+    pending = data.get("childLockCommand")
+    if isinstance(pending, bool):
+        return pending
+    return data.get("childLock") is True
 
 
 def _target_temperature(data: Mapping[str, Any]) -> float | None:
@@ -557,6 +658,25 @@ def _optional_whole_number(value: Any) -> int | None:
     if number is None:
         return None
     return int(Decimal(str(number)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _optional_tenths(value: Any) -> float | None:
+    """Return a finite JSON number rounded half up to 0.1, anything else as None."""
+    number = _optional_float(value)
+    if number is None:
+        return None
+    return float(Decimal(str(number)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
+def _optional_connected_value(value: Any) -> float | None:
+    """Return a finite JSON number as a float, None for -1 or anything else.
+
+    SBM reports -1 for a water channel that is not connected. Water in the pipes of
+    a building is never at -1 °C, and a flow is never negative, so -1 is not a real
+    value here.
+    """
+    number = _optional_float(value)
+    return None if number == _NOT_CONNECTED else number
 
 
 def _row_float(row: list[Any], index: int) -> float | None:

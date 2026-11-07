@@ -13,6 +13,10 @@ PLATFORMS: Final = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
 
 # The polling interval of the MQTT bridge.
 UPDATE_INTERVAL: Final = timedelta(seconds=120)
+# How often the coordinator of the apartment asks whether the system is switched off
+# for the whole building. That is set by hand and rarely changes, so it needs no
+# request at every poll.
+BUILDING_UPDATE_INTERVAL: Final = timedelta(minutes=10)
 
 CONF_APARTMENT_ID: Final = "apartment_id"
 CONF_PWHASH: Final = "pwhash"

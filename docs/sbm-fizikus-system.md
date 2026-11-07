@@ -38,6 +38,15 @@ Payload: `username_or_email`, `pwhash` (the lowercase hex SHA-256 of the UTF-8 p
 
 The answer is an object `{token, rights, expiration, refresh_token, refresh_token_expiration}`, or the same values as an array in that order. `token: null` means wrong credentials.
 
+A refused login, captured live on 2026-11-07, is not a 401 or 403 and has no `token`: SBM answers HTTP 500 with an `error` that names the reason.
+
+| Login | Status | Answer |
+|---|---|---|
+| Unknown username | 500 | `{"error": "user not found"}` |
+| Known username, wrong password | 500 | `{"error": "invalid password"}` |
+
+SBM's own failures may come with status 500 too, so only these errors mean wrong credentials.
+
 - **Roles**: when `rights` lists more than one role and no `login_level` was sent, the app lets the user pick one and logs in again with it. Seen values: `ap_owner` (the owner of an apartment, in the user's token), `ap_resident` (a sub-user added by the owner).
 - **The token** is a JWT. Its claims: `username`, `account_id`, `exp`, `type` (`access`), `login_level`.
 - **`expiration`** looks like `2026-11-05 17:02:55.123456`, without an offset. The app parses it with `Date.parse` after replacing the space with `T`, which JavaScript reads as local time. The integration reads it as UTC; both refresh well before the end, and a rejected token leads to a new login anyway.
@@ -114,7 +123,7 @@ The `…Command` fields follow one pattern: they hold a value that the app sent 
 
 What the live data shows about them (comparison with the fixture of the same apartment 25 days earlier):
 
-- `communicationActiveRelayModule` was `false` while the system was switched off, and the thermostats still reported fresh values.
+- `communicationActiveRelayModule` was `false` while the system was switched off, and the thermostats still reported fresh values. In a live test on 2026-11-07 it stayed `true` while the system was switched off for about a minute, so it does not follow the switch reliably.
 - The heating energy rose by 83 kWh and the heating/cooling water volume by 26.5 m³. The cooling energy, the hot water and the cold water values did not change, and `lastMeterSynchronisation` is the string `"None"`.
 - Inference: the energy values are a register divided by 0.86 (the factor from megacalories to kWh): `3566.08488… × 0.86 = 3066.833`, and the same holds for the cooling and hot water energy. The hot water energy (1 656 156 kWh for 624.8 m³) cannot be right, so not every register is in the unit its name says.
 - `-1` marks a channel or value that is not connected (`…2…` fields, outdoor values).
@@ -144,6 +153,8 @@ Payload: `apartment_id` (a string, as the app sends it) and one of:
 
 The answer, captured by the user, is the same for on and off: HTTP 200 and `{"message": "Apartment settings updated successfully.", "apartment_id": "123"}`, with the id of the apartment.
 
+A live test on 2026-11-07: right after the call, `get_apartment_data` reports the new value in `disabledCommand` while `disabled` keeps the old one. The device confirmed switching off after about 80 s and switching on after about 47 s; then `disabled` has the new value and `disabledCommand` is `null`. `data.disabled` of `get_building_data` stayed `false` all the time: it is the switch of the whole building, not of the apartment.
+
 ## Users, messages and notifications
 
 | Operation | Payload | Purpose |
@@ -161,13 +172,13 @@ The answer, captured by the user, is the same for on and off: HTTP 200 and `{"me
 
 ## What it means for the integration
 
-Already used: the login, the building and apartment lists, `get_apartment_data`, the target temperature, and `update_apartment_settings` with `disabled` (the System switch).
+Already used: the login, the building and apartment lists, `get_building_data` with `disabled`, `get_apartment_data`, the target temperature, the child lock, and `update_apartment_settings` with `disabled` (the System switch).
 
 Worth knowing for later work:
 
-- **Building-level switch**: `get_building_data` `disabled` switches every apartment off, and the apartment's own `disabled` can still be `false` then. The integration does not read it yet, so a system switched off at building level would not show as off.
-- **Pending commands**: right after a change, `…Command` fields hold the new value until the device confirms it. Like the app, the integration shows the pending target temperature (`temperatureSetpointCommandDegC`) and the pending switching (`disabledCommand`) instead of the confirmed values. `childLockCommand` is not used yet.
-- **Child lock**: per room with `child_lock` in `update_thermostat_settings`; the state is `childLock` (or `childLockCommand`).
+- **Building-level switch**: `get_building_data` `disabled` switches every apartment off, and the apartment's own `disabled` can still be `false` then. The integration reads it every 10 minutes and shows the system as off then. The answer (live capture, 2026-11-07) has `message`, `building_id` and `data`, with the address, `disabled`, `childLock`, the outdoor weather (`externalTemperatureDegC`, `externalTemperatureAvgDegC`, `externalHumidityPerc`), `heatingCircuits` and `apartmentInfo`.
+- **Pending commands**: right after a change, `…Command` fields hold the new value until the device confirms it. Like the app, the integration shows the pending target temperature (`temperatureSetpointCommandDegC`) and the pending switching (`disabledCommand`) instead of the confirmed values. The integration shows the pending child lock (`childLockCommand`) the same way.
+- **Child lock**: per room with `child_lock` in `update_thermostat_settings`; the state is `childLock` (or `childLockCommand`). A lock that was never set is `null` (live capture, 2026-11-07). A live test on 2026-11-07: the answer is `{"message": "Thermostat settings updated successfully.", "thermostat_id": <id>}`; the new value is pending in `childLockCommand` until the thermostat confirms it, after about 60 s for locking and 30 s for unlocking. After unlocking, `childLock` is `false`, no longer `null`.
 - **Dehumidifier**: `air_drying_max_level` in `update_apartment_settings`, only where `dehumidificationEquipment` is not `0`.
 - **Water values**: the forward and return temperature and the flow are what the app shows; the meters are not shown and partly implausible.
 - **`refresh_jw_token`** exists, but logging in again with the stored hash is enough for the integration.

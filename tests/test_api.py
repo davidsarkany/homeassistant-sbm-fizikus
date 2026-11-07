@@ -1,6 +1,7 @@
 """Tests of the SBM API client."""
 
 import asyncio
+import dataclasses
 import logging
 from typing import Any
 
@@ -283,6 +284,56 @@ async def test_login_refused(client: SbmClient, sbm: SbmStub, status: int) -> No
     assert sbm.operations == [LOGIN]
 
 
+@pytest.mark.parametrize("error", ["invalid password", "user not found"])
+async def test_login_refused_with_status_500(
+    client: SbmClient, sbm: SbmStub, error: str
+) -> None:
+    """SBM refuses a login with status 500 and an error (live captures, 2026-11-07)."""
+    sbm.queue(LOGIN, status=500, json_body={"error": error})
+
+    with pytest.raises(SbmAuthError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert str(err.value) == f"SBM refused the login with status 500: {error}"
+    assert sbm.operations == [LOGIN]
+
+
+@pytest.mark.parametrize(
+    "json_body",
+    [
+        {"error": "Internal server error"},
+        {"error": 5},
+        {"message": "invalid password"},
+        ["invalid password"],
+    ],
+)
+async def test_other_login_error_is_not_a_refusal(
+    client: SbmClient, sbm: SbmStub, json_body: Any
+) -> None:
+    """Only SBM's refusals mean wrong credentials, not its other failures."""
+    sbm.queue(LOGIN, status=500, json_body=json_body)
+
+    with pytest.raises(SbmApiError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert not isinstance(err.value, SbmAuthError)
+    assert err.value.status == 500
+
+
+async def test_refusal_error_of_another_operation_is_not_a_refusal(
+    client: SbmClient, sbm: SbmStub
+) -> None:
+    """Only the login can be refused; the call keeps its status."""
+    sbm.queue(DATA, status=500, json_body={"error": "invalid password"})
+
+    with pytest.raises(SbmApiError) as err:
+        await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert not isinstance(err.value, SbmAuthError)
+    assert err.value.sbm_error == "invalid password"
+    assert sbm.operations == [LOGIN, DATA]
+
+
 @pytest.mark.parametrize(
     "status", [400, 404, 405, 408, 409, 410, 415, 422, 429, 500, 503]
 )
@@ -517,8 +568,9 @@ async def test_apartment_data(client: SbmClient) -> None:
         active=False,
         temperature=24.8,
         humidity=60,
-        dew_point=15.934023536720074,
+        dew_point=15.9,
         target_temperature=23.0,
+        child_lock=False,
     )
     assert data.firmware_version == "1.2.11-legacy"
     assert not data.system_off
@@ -646,6 +698,29 @@ async def test_humidity_is_a_whole_number(
     assert type(value) is int
 
 
+@pytest.mark.parametrize(
+    ("dew_point", "expected"),
+    [
+        # Live capture of 2026-11-07: SBM sends the dew point with full precision.
+        (13.04477696992492, 13.0),
+        (15.934023536720074, 15.9),
+        (12.25, 12.3),
+        (-0.05, -0.1),
+        (14, 14.0),
+    ],
+)
+async def test_dew_point_is_rounded_to_tenths(
+    client: SbmClient, sbm: SbmStub, dew_point: float, expected: float
+) -> None:
+    sbm.apartment_data["thermostats"][0]["dewPointDegC"] = dew_point
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
+
+    value = data.thermostats[LIVING_ROOM_ID].dew_point
+    assert value == expected
+    assert type(value) is float
+
+
 @pytest.mark.parametrize("relay_module", [True, False, None])
 async def test_apartment_data_connection_ignores_the_relay_module(
     client: SbmClient, sbm: SbmStub, relay_module: Any
@@ -689,6 +764,7 @@ async def test_thermostat_values_that_are_missing_or_invalid(
         "humidity": None,
         "dew_point": None,
         "target_temperature": None,
+        "child_lock": False,
     }
     assert data.thermostats == {
         1: SbmThermostat(thermostat_id=1, **unknown),
@@ -772,7 +848,16 @@ async def test_request_rejects_non_finite_json_values(
     assert sbm.operations == []
 
 
-@pytest.mark.parametrize("answer", [[], {}, {"thermostat_id": "1001"}])
+@pytest.mark.parametrize(
+    "answer",
+    [
+        [],
+        {},
+        {"thermostat_id": "1001"},
+        {"thermostat_id": 1002},
+        {"thermostat_id": True},
+    ],
+)
 async def test_invalid_answer_to_set_target_temperature(
     client: SbmClient, sbm: SbmStub, answer: Any
 ) -> None:
@@ -790,6 +875,9 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
         system_off=False,
         thermostats={},
         firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
         raw={"lastStateUpdate": "2026-10-10 12:45:11.578277"},
     )
     second = SbmApartmentData(
@@ -798,7 +886,105 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
         system_off=False,
         thermostats={},
         firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
         raw={"lastStateUpdate": "2026-10-10 12:47:11.578277"},
     )
 
     assert first == second
+
+
+@pytest.mark.parametrize(
+    ("lock", "command", "expected"),
+    [
+        # Live capture of 2026-11-07: a lock that was never set is null.
+        (None, None, False),
+        (True, None, True),
+        (False, None, False),
+        # A change that the thermostat has not confirmed yet.
+        (False, True, True),
+        (True, False, False),
+        (None, "yes", False),
+    ],
+)
+async def test_child_lock(
+    client: SbmClient, sbm: SbmStub, lock: Any, command: Any, expected: bool
+) -> None:
+    thermostat = sbm.apartment_data["thermostats"][0]
+    thermostat["childLock"] = lock
+    thermostat["childLockCommand"] = command
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert data.thermostats[LIVING_ROOM_ID].child_lock is expected
+
+
+@pytest.mark.parametrize("locked", [True, False])
+async def test_set_child_lock_request_body(
+    client: SbmClient, sbm: SbmStub, locked: bool
+) -> None:
+    """The body is the one the room card of the app sends."""
+    sbm.queue(LOGIN, json_body=token("jwt"))
+
+    await client.async_set_child_lock(LIVING_ROOM_ID, locked=locked)
+
+    value = "true" if locked else "false"
+    assert sbm.bodies[-1] == (
+        b'{"operation":"update_thermostat_settings","payload":{"thermostat_id":1001,'
+        b'"child_lock":' + value.encode() + b',"jwt_token":"jwt"}}'
+    )
+
+
+@pytest.mark.parametrize("answer", [{}, {"thermostat_id": 1002}])
+async def test_invalid_answer_to_set_child_lock(
+    client: SbmClient, sbm: SbmStub, answer: Any
+) -> None:
+    sbm.queue("update_thermostat_settings", json_body=answer)
+
+    with pytest.raises(SbmInvalidResponseError):
+        await client.async_set_child_lock(LIVING_ROOM_ID, locked=True)
+
+
+async def test_building_off(client: SbmClient, sbm: SbmStub) -> None:
+    sbm.queue(LOGIN, json_body=token("jwt"))
+    sbm.queue("get_building_data", json_body={"data": {"disabled": True}})
+
+    assert await client.async_get_building_off(24)
+    assert not await client.async_get_building_off(24)
+    # The building id is an integer here, like the app sends it.
+    assert sbm.bodies[-1] == (
+        b'{"operation":"get_building_data","payload":{"building_id":24,'
+        b'"jwt_token":"jwt"}}'
+    )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [[], {}, {"data": None}, {"data": {}}, {"data": {"disabled": "true"}}],
+)
+async def test_invalid_building_data(
+    client: SbmClient, sbm: SbmStub, answer: Any
+) -> None:
+    sbm.queue("get_building_data", json_body=answer)
+
+    with pytest.raises(SbmInvalidResponseError):
+        await client.async_get_building_off(24)
+
+
+def test_switched_off_by_the_apartment_or_the_building() -> None:
+    data = SbmApartmentData(
+        operation_mode=0,
+        connected=True,
+        system_off=False,
+        thermostats={},
+        firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
+        raw={},
+    )
+
+    assert not data.switched_off
+    assert dataclasses.replace(data, system_off=True).switched_off
+    assert dataclasses.replace(data, building_off=True).switched_off

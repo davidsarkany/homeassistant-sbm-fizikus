@@ -25,6 +25,8 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": async_redact_data(entry.as_dict(), TO_REDACT),
         "last_update_success": coordinator.last_update_success,
+        # Whether the system is switched off for the whole building (get_building_data).
+        "building_off": coordinator.data.building_off,
         "apartment_data": async_redact_data(dict(coordinator.data.raw), TO_REDACT),
         # Only the parsed values: the answer of SBM has the address of the building.
         # The data is None while no outdoor sensor is enabled.

@@ -41,11 +41,11 @@ Az integrációt csak a letöltés és a Home Assistant újraindítása után le
 
 Minden lakás külön bejegyzés, saját termosztátokkal. A fiók egy másik lakásához add hozzá újra az integrációt: csak a még be nem állított lakásokat kínálja fel.
 
-Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezést, például mert megváltoztattad a jelszót, a Home Assistant értesítést jelenít meg, és újra kéri a jelszót. Ha az egyik lakásnál megadod, az ugyanahhoz a fiókhoz tartozó többi lakásnál is frissül.
+Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezést, például mert megváltoztattad a jelszót, a Home Assistant értesítést jelenít meg, és újra kéri a jelszót. Ugyanitt a felhasználónevet is módosíthatod, ha az SBM Fizikus alkalmazásba már mással jelentkezel be; az új fióknak hozzá kell férnie a lakáshoz. Ha az egyik lakásnál megadod, az ugyanahhoz a fiókhoz tartozó többi lakásnál is frissül.
 
 ## Entitások
 
-Minden termosztát egy eszköz, amely az SBM-ben megadott helyiségről kapja a nevét, és a lakás **SBM Fizikus** eszközéhez kapcsolódik. Az SBM Fizikus eszköz az SBM által jelentett firmware-verziót mutatja; az új verzió az integráció újratöltése vagy a Home Assistant újraindítása után jelenik meg.
+Minden termosztát egy eszköz, amely az SBM-ben megadott helyiségről kapja a nevét, és a lakás **SBM Fizikus** eszközéhez kapcsolódik. Az SBM Fizikus eszköz az SBM által jelentett firmware-verziót mutatja, az új verziót a következő lekérdezéskor.
 
 Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról)), ezért a Home Assistantban is az angol nevük látszik.
 
@@ -53,10 +53,11 @@ Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról
 |---|---|---|
 | Klíma | igen | Mért hőmérséklet és páratartalom, célhőmérséklet, fűtés vagy hűtés, és hogy a termosztát aktív-e. |
 | Humidity (páratartalom) | igen | Mért relatív páratartalom. |
-| Dew point (harmatpont) | nem | Az SBM által számított harmatpont. |
+| Dew point (harmatpont) | nem | Az SBM által számított harmatpont, 0,1 °C-ra kerekítve. |
 | Temperature (hőmérséklet) | nem | Mért hőmérséklet. |
 | Target temperature (célhőmérséklet) | nem | Célhőmérséklet. |
 | System mode (rendszermód) | nem | Diagnosztikai: `off`, amíg a rendszer ki van kapcsolva, `heating` vagy `cooling`, amíg a termosztát aktív, egyébként `idle`. |
+| Child lock (gyerekzár) | nem | Konfigurációs kapcsoló: zárolja a termosztát gombjait, ahogy az alkalmazás helyiségkártyája. |
 
 A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület SBM által jelentett külső időjárása:
 
@@ -65,9 +66,12 @@ A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület 
 | System (rendszer) | igen | Be- vagy kikapcsolja a lakás SBM Fizikus rendszerét, ahogy az SBM Fizikus alkalmazás. |
 | Outdoor temperature (külső hőmérséklet) | nem | Az épület külső hőmérséklete. |
 | Outdoor humidity (külső páratartalom) | nem | Az épület külső relatív páratartalma. |
+| Forward water temperature (előremenő vízhőmérséklet) | nem | A hőközpontból érkező víz hőmérséklete. |
+| Return water temperature (visszatérő vízhőmérséklet) | nem | A visszamenő víz hőmérséklete. |
+| Flow rate (átfolyás) | nem | A lakáson átfolyó víz mennyisége, l/h-ban. |
 
 - A **célhőmérséklet** 5 és 35 °C között állítható. Az SBM 0,1 °C felbontással tárolja: a kártya 0,5 °C-os lépésekben állít, más értékeket (például egy automatizálásból) 0,1 °C-ra kerekít.
-- A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, ahogy a hídnál sem; így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
+- A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, ahogy a hídnál sem; így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. Ha a rendszert az egész épületre kikapcsolják (az alkalmazásban: „Épület szinten a rendszer kikapcsolva”), a mód szintén `off`, a **System** kapcsoló pedig nem elérhető, mert a lakás ilyenkor nem kapcsolható, ahogy az alkalmazásban sem. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
 - A **külső szenzorokhoz** egy további kérés kell az SBM felé, ezért az integráció csak akkor kérdezi le a külső időjárást, ha legalább az egyik engedélyezve van. Az engedélyezés után kb. 30 másodperccel az integráció újratöltődik. Nem függenek a termosztátoktól: elérhetők maradnak, ha az SBM a termosztátokat leválasztottnak jelenti, és a termosztátok is elérhetők maradnak, ha a külső időjárást nem sikerül lekérni.
 - Az entitások **nem elérhetők**, ha az SBM nem érhető el, ha az SBM a termosztátokat leválasztottnak jelenti (ezt mutatja az alkalmazás kapcsolatjelzője is), vagy ha egy termosztát hiányzik az SBM válaszából.
 
@@ -75,7 +79,7 @@ A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület 
 
 Az integráció 2 percenként kérdezi le az SBM-et. Új célhőmérséklet beállítása vagy a rendszer kapcsolása után azonnal lekérdez. Az SBM az új értéket függőként rögtön jelenti, így az azonnal megjelenik, amíg a termosztát vagy a készülék 1–2 percen belül meg nem erősíti. A lakáshoz később hozzáadott termosztátok a következő lekérdezéskor jelennek meg, újratöltés nélkül.
 
-Amíg egy külső szenzor engedélyezve van, minden lekérdezés a fiók épületeit is lekéri az SBM-től, mert ezek tartalmazzák a külső időjárást. Indítás vagy újratöltés után az integráció egyszer azt is megnézi, melyik épületben van a lakás.
+Az integráció 10 percenként azt is lekérdezi, hogy a rendszert nem kapcsolták-e ki az egész épületre. Ehhez indítás vagy újratöltés után egyszer megnézi, melyik épületben van a lakás. Amíg egy külső szenzor engedélyezve van, minden lekérdezés a fiók épületeit is lekéri az SBM-től, mert ezek tartalmazzák a külső időjárást.
 
 ## Példa
 
@@ -117,8 +121,8 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
 - Több lakásnál a lakások eszközeinek ugyanaz lehet a neve: minden lakásnak van SBM Fizikus eszköze, és a helyiségeket is gyakran ugyanúgy hívják. A Home Assistant ilyenkor `_2`-t fűz a később beállított lakás entitásazonosítóihoz. Nevezd át az eszközöket vagy az entitásokat, hogy meg tudd különböztetni őket.
 - A fűtés vagy hűtés a Home Assistantból nem módosítható. A másik mód kiválasztása nem jelez hibát, egyszerűen nem történik semmi.
 - Az a jelenet, amelyet kikapcsolt rendszernél (`off` módban) mentettél, bekapcsolt rendszernél hibát jelez, és a célhőmérsékletet sem állítja be: az `off` módot ilyenkor maga a Home Assistant utasítja el. Mentsd újra a jelenetet bekapcsolt rendszernél.
-- Ha a rendszert az egész épületre kikapcsolják, az integráció ezt nem látja: a **System** kapcsoló bekapcsolva marad, és a klíma-entitások sem váltanak `off`-ra. Az SBM Fizikus alkalmazás ilyenkor azt írja ki, hogy „Épület szinten a rendszer kikapcsolva”.
-- A mérők, a vízhőmérsékletek, az átfolyási értékek, az energia- és térfogatszámlálók, a gyerekzár és a hűtés kézi tiltása nem érhető el.
+- Az egész épületre szóló kikapcsolást az integráció legfeljebb 10 perces késéssel látja.
+- A mérők, az energia- és térfogatszámlálók, az épületszintű gyerekzár és a hűtés kézi tiltása nem érhető el. A vízértékek közül csak az első csatornáé: a második csatornát az SBM nem bekötöttnek jelenti.
 
 ## Hibaelhárítás
 
@@ -159,7 +163,7 @@ A tesztek a `pytest-homeassistant` csomagot, a Home Assistant core tesztcsomagj�
 docker run --rm -it -v "${PWD}:/work" -w /work -e UV_PROJECT_ENVIRONMENT=/opt/venv ghcr.io/astral-sh/uv:python3.14-bookworm-slim sh -c "uv sync && uv run pytest --cov --cov-report=term-missing"
 ```
 
-A `pytest-homeassistant` rögzíti azt a Home Assistant-kiadást, amelyhez tartozik: egy új kiadással való teszteléshez frissítsd.
+A `pytest-homeassistant` rögzíti azt a Home Assistant-kiadást, amelyhez tartozik. A Dependabot havonta PR-t nyit a frissítésére. A CI a teszteket a `hacs.json`-ban megadott legrégebbi támogatott Home Assistant-verzióval is lefuttatja, egy heti workflow pedig a legújabb bétával.
 
 ### HACS-tároló metaadatai
 

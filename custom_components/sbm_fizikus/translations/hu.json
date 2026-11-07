@@ -9,7 +9,8 @@
     "error": {
       "cannot_connect": "Nem sikerült csatlakozni az SBM-hez.",
       "invalid_auth": "Hibás felhasználónév vagy jelszó.",
-      "unknown": "Váratlan hiba történt."
+      "unknown": "Váratlan hiba történt.",
+      "wrong_account": "Ehhez a fiókhoz nem tartozik a lakás. Azzal a fiókkal jelentkezz be, amellyel a lakást beállítottad."
     },
     "step": {
       "apartment": {
@@ -24,12 +25,14 @@
       },
       "reauth_confirm": {
         "data": {
-          "password": "Jelszó"
+          "password": "Jelszó",
+          "username": "Felhasználónév vagy e-mail-cím"
         },
         "data_description": {
-          "password": "A fiók jelszava. A Home Assistant csak a jelszó hash-ét tárolja."
+          "password": "A fiók jelszava. A Home Assistant csak a jelszó hash-ét tárolja.",
+          "username": "Csak akkor módosítsd, ha már más felhasználónévvel vagy e-mail-címmel jelentkezel be az SBM Fizikus alkalmazásba."
         },
-        "description": "Az SBM elutasította {username} bejelentkezését. Add meg újra a fiók jelszavát.",
+        "description": "Az SBM elutasította {username} bejelentkezését. Add meg újra a fiók jelszavát, és a felhasználónevet, ha megváltozott.",
         "title": "Add meg újra az SBM-jelszót"
       },
       "user": {
@@ -70,6 +73,9 @@
     },
     "set_temperature_failed": {
       "message": "Nem sikerült beállítani a célhőmérsékletet: {error}"
+    },
+    "switch_child_lock_failed": {
+      "message": "Nem sikerült zárolni vagy feloldani a termosztátot: {error}"
     },
     "switch_system_failed": {
       "message": "Nem sikerült be- vagy kikapcsolni az SBM Fizikus rendszert: {error}"

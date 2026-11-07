@@ -1,6 +1,6 @@
 # SBM Fizikus Home Assistant integration: design
 
-This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.1.3.
+This document describes how the integration works and why: the SBM API it uses, the behaviour of its entities, and the decisions behind them, with the alternatives that were not chosen. It describes version 0.2.0.
 
 The reference implementation of the SBM API is the [sbm-fizikus-to-mqtt](https://github.com/davidsarkany/sbm-fizikus-to-mqtt) bridge. Paths starting with `src/` refer to that repository.
 
@@ -23,10 +23,9 @@ Supported:
 
 Not supported:
 
-- Meters, water temperatures and flow, energy and volume counters from `get_apartment_data`.
-- The child lock (`childLock`) and the manual cooling disable (`coolingDisabledManually`).
+- Meters, energy and volume counters from `get_apartment_data`, and the second water channel (`…2…`), which SBM reports as not connected (`-1`).
+- The building-level child lock (`childLock` of `get_building_data`) and the manual cooling disable (`coolingDisabledManually`).
 - Changing heating or cooling, which is set centrally for the building.
-- The building-level switch (`disabled` of `get_building_data`): a system switched off for the whole building does not show as off.
 - SBM's refresh token (see [Open points](#open-points)).
 - Automatic migration of the bridge's MQTT entities.
 
@@ -43,8 +42,9 @@ All calls are `PUT https://ps9et7hsp3.execute-api.eu-central-1.amazonaws.com/fro
 | Operation | Payload | Answer used | When |
 |---|---|---|---|
 | `get_jw_token` | `username_or_email`, `pwhash` | `token`, `expiration` | setup, reauthentication, token expiry, after 401/403 |
-| `get_building_access_rights` | `jwt_token` | positional `[[buildingId, country, postalCode, city, street, outdoorTemp, outdoorHum, name], ...]`: `buildingId`, `outdoorTemp`, `outdoorHum` | setup; every poll while an outdoor sensor is enabled |
-| `get_apartment_access_rights` | `building_id` (**string**) | positional `[[buildingId, apartmentId, name, isOnline], ...]`: `apartmentId`, `name` | setup, for every building; once per load to find the building of the apartment, while an outdoor sensor is enabled |
+| `get_building_access_rights` | `jwt_token` | positional `[[buildingId, country, postalCode, city, street, outdoorTemp, outdoorHum, name], ...]`: `buildingId`, `outdoorTemp`, `outdoorHum` | setup; once per load to find the building of the apartment; every poll while an outdoor sensor is enabled |
+| `get_apartment_access_rights` | `building_id` (**string**) | positional `[[buildingId, apartmentId, name, isOnline], ...]`: `apartmentId`, `name` | setup and reauthentication, for every building; once per load to find the building of the apartment |
+| `get_building_data` | `building_id` (int) | `data.disabled` | every 10 minutes |
 | `get_apartment_data` | `apartment_id` (int) | `operationMode`, `communicationActiveThermostats`, `disabled`, `disabledCommand`, `fwVer`, `thermostats[]` | every poll |
 | `update_thermostat_settings` | `thermostat_id` (int), `temp_setpoint_degC` (number) | `thermostat_id` | set temperature |
 | `update_apartment_settings` | `apartment_id` (**string**), `disabled` (bool) | `apartment_id` (string), next to `message`: `Apartment settings updated successfully.` | switch the system on or off |
@@ -54,11 +54,12 @@ Per thermostat: `ID`, `name` (may be null), `measuredTempDegC`, `measuredHumPerc
 Known facts:
 
 - `pwhash` is the lowercase hex SHA-256 of the UTF-8 password.
-- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40 s (live captures, 2026-11-04).
+- A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40–80 s, and the child lock with `childLockCommand` and `childLock`, within about 30–60 s (live captures, 2026-11-04 and 2026-11-07).
 - SBM keeps setpoints with 0.1 °C resolution, for example 22.3.
-- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reports `communicationActiveRelayModule: false`, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
+- `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reported `communicationActiveRelayModule: false` in one capture and `true` in another, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
 - Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`.
 - 401 and 403 mean the token was rejected.
+- A refused login is HTTP 500 with `{"error": "invalid password"}` or `{"error": "user not found"}` (live captures, 2026-11-07), not a 401 or 403.
 - Numbers come as integers or floats (`19`, `23.2`); unused meter channels are `-1`.
 - An outdoor value that SBM does not know is `-1`. The integration reads an outdoor humidity of `-1` as unknown, and an outdoor temperature of `-1` only when the humidity is `-1` too, because -1 °C is a real winter temperature.
 
@@ -67,7 +68,7 @@ Known facts:
 | Module | Role |
 |---|---|
 | `api.py` | The SBM client. It does not depend on Home Assistant. It uses Home Assistant's shared `aiohttp` session, a 30 s request timeout and an `asyncio.Lock` around the login. |
-| `coordinator.py` | `SbmFizikusCoordinator` polls the apartment; `SbmFizikusOutdoorCoordinator` polls the outdoor weather; `SbmFizikusData` is the runtime data of a config entry. |
+| `coordinator.py` | `SbmFizikusCoordinator` polls the apartment and runs the actions of the entities with their error handling (`async_run_action`); `SbmFizikusOutdoorCoordinator` polls the outdoor weather; `SbmFizikusData` is the runtime data of a config entry. |
 | `entity.py` | The base entity of a thermostat, and the helper that adds the entities of new thermostats. |
 | `climate.py`, `sensor.py`, `switch.py` | The platforms. |
 | `config_flow.py` | Setup, apartment choice and reauthentication. |
@@ -82,8 +83,8 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 - The config flow asks for the username and the password, computes `pwhash` at once, and stores only `username` and `pwhash` in the config entry. The password is never stored or logged.
 - `pwhash` is as good as the password for SBM, so it is treated as a secret: redacted in diagnostics, never logged.
 - The token and its expiration live in memory only. Before a call the client logs in again when the token expires within 30 s. On 401/403 it drops the token, logs in once more and retries the call once, like the bridge's `SbmSession`.
-- A login that SBM answers but refuses (401/403, or a JSON object without a token) raises `ConfigEntryAuthFailed`, which starts the reauthentication flow. An answer that is not valid JSON is an invalid response, so a broken answer does not start a reauthentication.
-- The reauthentication flow asks only for the password and checks it by fetching the apartment data of the entry. It also gives the new hash to the other entries with the same username (the other apartments of the account) and reloads them, which closes their own reauthentication flows.
+- A login that SBM refuses (status 500 with the `error` `invalid password` or `user not found`, 401/403, or a JSON object without a token) raises `ConfigEntryAuthFailed`, which starts the reauthentication flow. An answer that is not valid JSON is an invalid response, so a broken answer does not start a reauthentication. Any other status 500 is a failure of SBM, not a refusal, so it does not start one either.
+- The reauthentication flow asks for the password and the username, filled in with the one of the entry, as the username or email of the account may have changed. It logs in and checks that the account still lists the apartment of the entry; otherwise it shows `wrong_account`, so a new username cannot move the entry to an account without the apartment. It also gives the new login to the other entries with the old username (the other apartments of the account) that the account lists, and reloads them, which closes their own reauthentication flows. Not chosen: a separate reconfigure flow; the only settings are the credentials, which the reauthentication covers (quality rule `reconfiguration-flow`).
 - Other HTTP errors (including login route errors such as 404), network errors and timeouts raise `UpdateFailed` (poll) or `HomeAssistantError` (actions); the next poll tries again.
 - Every exception shown to users uses `translation_domain` and `translation_key`, with the texts in the `exceptions` section of the translation files (quality rule `exception-translations`).
 
@@ -96,7 +97,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 
 ### Polling
 
-- `SbmFizikusCoordinator` calls `get_apartment_data` every 120 s, the bridge's default. It is stored in `ConfigEntry.runtime_data`.
+- `SbmFizikusCoordinator` calls `get_apartment_data` every 120 s, the bridge's default. It is stored in `ConfigEntry.runtime_data`. Every 10 minutes it also calls `get_building_data`, see [Building switched off](#building-switched-off).
 - Setup calls `async_config_entry_first_refresh`, so a failed first poll makes the entry retry (`ConfigEntryNotReady`) and a refused login starts reauthentication, before any entity is created (quality rule `test-before-setup`).
 - After a successful action the coordinator refreshes at once (`async_request_refresh`); there is no optimistic state.
 - The base URL is a constant and the interval is fixed; there is no options flow.
@@ -104,7 +105,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 ### Devices
 
 - One device per thermostat: identifier `(sbm_fizikus, "{apartment_id}_{thermostat_id}")`, named after the thermostat, or `Thermostat {id}` without a name (as in the bridge, not translated), manufacturer `SBM-Verting`, model `Fizikus thermostat`.
-- One device per apartment: identifier `(sbm_fizikus, "{apartment_id}")`, name `SBM Fizikus` (the bridge's fixed name, `DiscoveryBuilder.cs`), manufacturer `SBM-Verting`, model `Fizikus`, `sw_version` = `fwVer`, set at every setup. The apartment name goes into the config entry title, not the device name. With more than one apartment, every apartment device is called `SBM Fizikus`, so the entity IDs of the later ones get a `_2` suffix; the fixed name keeps the bridge's entity IDs.
+- One device per apartment: identifier `(sbm_fizikus, "{apartment_id}")`, name `SBM Fizikus` (the bridge's fixed name, `DiscoveryBuilder.cs`), manufacturer `SBM-Verting`, model `Fizikus`, `sw_version` = `fwVer`, set at setup and updated at the poll that reports a new one, without a reload; a poll without `fwVer` keeps the known version. The apartment name goes into the config entry title, not the device name. With more than one apartment, every apartment device is called `SBM Fizikus`, so the entity IDs of the later ones get a `_2` suffix; the fixed name keeps the bridge's entity IDs.
 - The apartment device is created in `async_setup_entry` with `device_registry.async_get_or_create` before the platforms are set up. Thermostats point to it with `via_device_id`. Not `via_device`: that field is removed in Home Assistant 2027.8. Not `ChildDeviceInfo`: the name of a parent device becomes part of new entity IDs, which would break the bridge-compatible IDs.
 
 ### Climate entity (one per thermostat)
@@ -122,7 +123,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 | Key | Name | Value | Class | Enabled by default |
 |---|---|---|---|---|
 | `humidity` | Humidity | `measuredHumPerc` as an integer: the thermostats measure whole percents and SBM sends integers like `62` (live capture, 2026-11-04); a float would be rounded half up | humidity, measurement, % | yes |
-| `dew_point` | Dew point | `dewPointDegC` | temperature, measurement, °C | no |
+| `dew_point` | Dew point | `dewPointDegC` rounded half up to 0.1 °C: SBM sends it with full precision, like `13.04477696992492` (live capture, 2026-11-07), and the same value for every thermostat | temperature, measurement, °C | no |
 | `temperature` | Temperature | `measuredTempDegC` | temperature, measurement, °C | no |
 | `target_temperature` | Target temperature | `temperatureSetpointCommandDegC` while pending, otherwise `temperatureSetpointDegC` | temperature, measurement, °C | no |
 | `system_mode` | System mode | `off` while the system is switched off, `heating` / `cooling` while active, otherwise `idle`; unknown while active with an unknown mode | enum (`heating`, `cooling`, `idle`, `off`), diagnostic | no |
@@ -139,12 +140,41 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - A test checks the entity IDs with the server language set to `en` and to `hu`.
 - Not chosen: translated names with entity IDs set by the integration. Home Assistant discourages setting `entity_id`, and such IDs would not follow a renamed device when the entity IDs are regenerated.
 
+### Building switched off
+
+- `get_building_data` (live capture, 2026-11-07) has `data.disabled`, the building-level switch of the app. While it is true, the app shows "Épület szinten a rendszer kikapcsolva", treats every apartment as switched off and greys out the apartment's switch; the apartment's own `disabled` can still be false.
+- The integration does the same: the climate entities and the system mode show `off` (`SbmApartmentData.switched_off`), and the System switch is unavailable, while its `is_on` stays the apartment's own setting.
+- `SbmFizikusCoordinator` asks `get_building_data` every 10 minutes (`BUILDING_UPDATE_INTERVAL`), not at every poll: the switch is set by hand and rarely changes. In between, a poll keeps the last value. A change is logged once at info level.
+- The building of the apartment is looked up once per load: `get_building_access_rights`, then `get_apartment_access_rights` for each building until one lists the apartment. The outdoor coordinator uses the same lookup, so it is done once for both.
+- The building switch is extra information: when the lookup or `get_building_data` fails, the poll keeps the last known value and logs the cause at debug level instead of failing, so the thermostats stay available. The next check looks the building up again, as it may be gone. A refused login still starts the reauthentication.
+- The answer holds the address of the building, so the debug log leaves it out, like the list of buildings. Diagnostics show only `building_off`.
+- Not chosen: the outdoor values of `get_building_data` (`externalTemperatureDegC`, `externalHumidityPerc`) for the outdoor sensors. They are the ones of `get_building_access_rights`, which the outdoor sensors already poll every 2 minutes.
+
+### Child lock switch (one per thermostat)
+
+- A `switch` on the device of the thermostat, named `Child lock` (`switch.<room>_child_lock`), `unique_id` `{apartment_id}_{thermostat_id}_child_lock`, entity category config, disabled by default. It locks the buttons of the thermostat with `update_thermostat_settings` and `child_lock`, like the room card of the app, then refreshes.
+- On is `childLockCommand` while a change is pending, otherwise `childLock`, like the app. SBM reports `null` for a lock that was never set (live capture, 2026-11-07: every room), which is off; after the first unlock it is `false`.
+- Availability like the other entities of the thermostat. The answer must name the thermostat (`thermostat_id`), for the target temperature too.
+- Not chosen: the settings page of the app, which switches every room and sends the current target temperature with it; a lock per room is what the room card does, and one switch per room covers both.
+
 ### Switched-off system and the System switch
 
 - `system_off` is `disabledCommand` while a switching is pending, otherwise `disabled`, like the app, so the switch, the climate entities and the system mode show a switching at once. Switching the system does not affect the availability of the entities.
 - A `switch` on the apartment device, named `System`, `unique_id` `{apartment_id}_system`, enabled by default, sends `update_apartment_settings` like the app and then refreshes. `PARALLEL_UPDATES = 1`.
 - The climate entities show `off` but do not switch the system: off for one room, for example from an automation for an open window, would switch off every room.
 - The target temperature can still be set while the system is off.
+
+### Water sensors (on the apartment device)
+
+| Key | Name | Value | Class | Enabled by default |
+|---|---|---|---|---|
+| `forward_water_temperature` | Forward water temperature | `forwardWaterTemperature1DegC` | temperature, measurement, °C | no |
+| `return_water_temperature` | Return water temperature | `returningWaterTemperature1DegC` | temperature, measurement, °C | no |
+| `flow_rate` | Flow rate | `flowRateLiterPerHour1` | volume flow rate, measurement, L/h | no |
+
+- The only values of the "Statisztika" page of the app (live capture, 2026-11-07: 26.0 °C, 25.4 °C, 0.0 L/h). They come with every `get_apartment_data`, so they need no request of their own. `unique_id` = `{apartment_id}_{key}`, entity IDs `sensor.sbm_fizikus_<key>`.
+- `-1` means a channel that is not connected, so it is unknown: water in the pipes is never at -1 °C, and a flow is never negative. Only the first channel; SBM reports the second one as `-1`.
+- The device of the apartment reports them, not the thermostats, so they stay available when SBM does not reach the thermostats, like the System switch.
 
 ### Outdoor sensors (on the apartment device)
 
@@ -154,9 +184,9 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 | `outdoor_humidity` | Outdoor humidity | `outdoorHum` of the building | humidity, measurement, % | no |
 
 - The names of the bridge's apartment sensors, so the entity IDs are `sensor.sbm_fizikus_outdoor_temperature` and `sensor.sbm_fizikus_outdoor_humidity`. `unique_id` = `{apartment_id}_{key}`.
-- `SbmFizikusOutdoorCoordinator` polls `get_building_access_rights` every 120 s. It has no first refresh at setup, and a coordinator polls only while entities listen to it. A disabled entity is not added, so it never listens; enabling one reloads the config entry, and disabling one removes its listener at once. The first outdoor sensor that is added requests a refresh in the background, so the values do not wait for the first interval and a slow SBM does not hold up the setup of the entry.
+- `SbmFizikusOutdoorCoordinator` polls `get_building_access_rights` every 120 s. It has no first refresh at setup, and a coordinator polls only while entities listen to it. A disabled entity is not added, so it never listens; enabling one reloads the config entry, and disabling one removes its listener at once. The first outdoor sensor that is added requests a refresh in the background, so the values do not wait for the first interval and a slow SBM does not hold up the setup of the entry. Not chosen: a longer interval. The history of a week (2026-11-07) shows that SBM updates the outdoor values at least every 2 minutes, so a longer interval would show real changes later; most of the changes are small, like 9.4, 9.6, 9.5 °C.
 - Not chosen: the `async_contexts()` gating of some core integrations (for example `iron_os`, `jvc_projector`); the outdoor data has its own endpoint, so a separate coordinator does the same with the standard listener behaviour. Also not chosen: an option to turn the outdoor weather on; Home Assistant enables optional entities through the entity registry (quality rule `entity-disabled-by-default`).
-- The building of the apartment is not stored. At the first poll, and when the building is no longer listed, the coordinator asks `get_apartment_access_rights` for each building until it finds the apartment. No building with the apartment is an `UpdateFailed` (`building_not_found`). The bridge uses the first building instead.
+- The building of the apartment is not stored. The coordinator of the apartment looks it up once per load, also for [Building switched off](#building-switched-off), and the outdoor coordinator uses that lookup; when the building is no longer listed, it asks `get_apartment_access_rights` for each building again until it finds the apartment. No building with the apartment is an `UpdateFailed` (`building_not_found`) of the outdoor coordinator. The bridge uses the first building instead.
 - An outdoor error makes only the outdoor sensors unavailable, and the thermostat flags do not affect them. A refused login starts reauthentication, like the main coordinator.
 
 ### Availability and logging
@@ -198,7 +228,7 @@ Because the device and entity names match, Home Assistant gives the new entities
 - The tests cover the API client (request bodies equal the bridge's and the app's, the hash, re-login on 401/403, token expiry, parsing), the config flow (success, errors with recovery, no apartments, choosing an apartment, already configured, reauthentication of all apartments of the account), the coordinators, the climate mapping, the sensors, the switch, the outdoor sensors, availability, diagnostics, entity IDs in English and Hungarian, new and stale thermostats.
 - Coverage is 100 % for lines and branches, and CI enforces it. The quality scale has no tiers for custom integrations, but its rules up to Silver, and the Gold rules named here, are the target.
 - The tests need the Python version of the Home Assistant release they run against, pinned in `.python-version`; `uv` manages the environment. Home Assistant does not run on Windows, so the README runs the tests in Docker or WSL there.
-- CI runs `ruff`, the tests, `hassfest` and the HACS validation action.
+- CI runs `ruff`, `hassfest` and the HACS validation action, and the tests twice: with the Home Assistant release of `uv.lock`, and with the minimum release in `hacs.json`, so code that needs a newer release fails before it reaches users. Dependabot opens one grouped pull request a month for the Python dependencies, which moves the tests to the newest release, and one for the GitHub Actions. A weekly workflow runs the tests against the newest release, beta included, to notice deprecations before the stable release; GitHub notifies only about its failures.
 
 ## Repository
 
@@ -207,5 +237,4 @@ Because the device and entity names match, Home Assistant gives the new entities
 ## Open points
 
 - The SBM Fizikus web app renews its token with `refresh_jw_token` (payload `refresh_token`); the integration logs in again instead.
-- The web app switches the child lock with `update_thermostat_settings` (`child_lock`); the integration does not support it yet.
 - The bridge's README does not point to the integration yet.

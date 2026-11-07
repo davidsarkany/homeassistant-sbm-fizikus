@@ -15,6 +15,7 @@ from homeassistant.const import (
     EntityCategory,
     Platform,
     UnitOfTemperature,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -32,6 +33,7 @@ from .api import (
 from .const import DOMAIN, apartment_device_identifier
 from .coordinator import (
     SbmFizikusConfigEntry,
+    SbmFizikusCoordinator,
     SbmFizikusData,
     SbmFizikusOutdoorCoordinator,
 )
@@ -45,7 +47,7 @@ _SYSTEM_MODES = {OPERATION_MODE_HEATING: "heating", OPERATION_MODE_COOLING: "coo
 
 def _system_mode(data: SbmApartmentData, thermostat: SbmThermostat) -> str | None:
     """Return off, the mode of the building while the thermostat is active, or idle."""
-    if data.system_off:
+    if data.switched_off:
         return "off"
     if not thermostat.active:
         return "idle"
@@ -57,6 +59,13 @@ class SbmFizikusSensorEntityDescription(SensorEntityDescription):
     """Describes a sensor of a thermostat."""
 
     value_fn: Callable[[SbmApartmentData, SbmThermostat], StateType]
+
+
+@dataclass(frozen=True, kw_only=True)
+class SbmFizikusApartmentSensorEntityDescription(SensorEntityDescription):
+    """Describes a sensor of the apartment."""
+
+    value_fn: Callable[[SbmApartmentData], StateType]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -120,6 +129,37 @@ SENSORS: tuple[SbmFizikusSensorEntityDescription, ...] = (
     ),
 )
 
+# The values of the "Statisztika" page of the app, on the device of the apartment.
+APARTMENT_SENSORS: tuple[SbmFizikusApartmentSensorEntityDescription, ...] = (
+    SbmFizikusApartmentSensorEntityDescription(
+        key="forward_water_temperature",
+        name="Forward water temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.forward_water_temperature,
+    ),
+    SbmFizikusApartmentSensorEntityDescription(
+        key="return_water_temperature",
+        name="Return water temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.return_water_temperature,
+    ),
+    SbmFizikusApartmentSensorEntityDescription(
+        key="flow_rate",
+        name="Flow rate",
+        device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfVolumeFlowRate.LITERS_PER_HOUR,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.flow_rate,
+    ),
+)
+
 # The bridge has these too, on the device of the apartment, so they keep its names.
 OUTDOOR_SENSORS: tuple[SbmFizikusOutdoorSensorEntityDescription, ...] = (
     SbmFizikusOutdoorSensorEntityDescription(
@@ -159,6 +199,10 @@ async def async_setup_entry(
     )
     data = entry.runtime_data
     async_add_entities(
+        SbmFizikusApartmentSensor(data, description)
+        for description in APARTMENT_SENSORS
+    )
+    async_add_entities(
         SbmFizikusOutdoorSensor(data, description) for description in OUTDOOR_SENSORS
     )
 
@@ -183,6 +227,37 @@ class SbmFizikusSensor(SbmFizikusEntity, SensorEntity):
     def native_value(self) -> StateType:
         """Return the value of the sensor."""
         return self.entity_description.value_fn(self.coordinator.data, self.thermostat)
+
+
+class SbmFizikusApartmentSensor(CoordinatorEntity[SbmFizikusCoordinator], SensorEntity):
+    """A sensor of the apartment, on its device.
+
+    The values come from the device of the apartment, not from the thermostats, so
+    they do not depend on whether SBM reaches the thermostats.
+    """
+
+    _attr_has_entity_name = True
+    entity_description: SbmFizikusApartmentSensorEntityDescription
+
+    def __init__(
+        self,
+        data: SbmFizikusData,
+        description: SbmFizikusApartmentSensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(data.coordinator)
+        self.entity_description = description
+        apartment_id = data.coordinator.apartment_id
+        self._attr_unique_id = f"{apartment_id}_{description.key}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, apartment_device_identifier(apartment_id))}
+        )
+
+    @property
+    @override
+    def native_value(self) -> StateType:
+        """Return the value of the sensor."""
+        return self.entity_description.value_fn(self.coordinator.data)
 
 
 class SbmFizikusOutdoorSensor(

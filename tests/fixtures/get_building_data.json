@@ -1,0 +1,29 @@
+{
+  "message": "Building data retrieved successfully.",
+  "building_id": 24,
+  "data": {
+    "name": "T1",
+    "prettyName": "T1",
+    "country": "Magyarország",
+    "postalCode": 1111,
+    "city": "Budapest",
+    "address": "Teszt utca 1",
+    "dewPointOffsetDegC": 0.0,
+    "dehumidificationEquipment": 0,
+    "childLock": false,
+    "childLockTemperatureDegC": 15.0,
+    "externalTemperatureDegC": 19.9,
+    "externalTemperatureAvgDegC": 18.2,
+    "externalHumidityPerc": 49.9,
+    "PLCHeartbeatOK": true,
+    "lastUpdate": "2026-11-07 12:45:11.578277",
+    "disabled": false,
+    "weatherCode": 1,
+    "apartmentInfo": {
+      "numberOfApartments": 2,
+      "numberOfThermostats": 8,
+      "numberOfDisabledThermostats": 0,
+      "numberOfActiveDehumidifiers": -1
+    }
+  }
+}

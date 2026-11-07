@@ -28,16 +28,14 @@ _LOGGER = logging.getLogger(__name__)
 _PASSWORD_SELECTOR = TextSelector(
     TextSelectorConfig(type=TextSelectorType.PASSWORD, autocomplete="current-password")
 )
-USER_SCHEMA = probatio.Schema(
+# The reauthentication asks for the username too, which may have changed.
+USER_SCHEMA = REAUTH_SCHEMA = probatio.Schema(
     {
         probatio.Required(CONF_USERNAME): TextSelector(
             TextSelectorConfig(type=TextSelectorType.TEXT, autocomplete="username")
         ),
         probatio.Required(probatio.Secret(CONF_PASSWORD)): _PASSWORD_SELECTOR,
     }
-)
-REAUTH_SCHEMA = probatio.Schema(
-    {probatio.Required(probatio.Secret(CONF_PASSWORD)): _PASSWORD_SELECTOR}
 )
 
 
@@ -157,15 +155,20 @@ class SbmFizikusConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask for the password of the account again."""
+        """Ask for the password of the account again, and the username if it changed.
+
+        The account must still have the apartment of the entry, so a changed
+        username cannot move the entry to another account without it.
+        """
         entry = self._get_reauth_entry()
-        username = entry.data[CONF_USERNAME]
+        old_username = entry.data[CONF_USERNAME]
         errors: dict[str, str] = {}
         if user_input is not None:
+            username = user_input[CONF_USERNAME].strip()
             pwhash = hash_password(user_input[CONF_PASSWORD])
             client = SbmClient(async_get_clientsession(self.hass), username, pwhash)
             try:
-                await client.async_get_apartment_data(entry.data[CONF_APARTMENT_ID])
+                apartments = await client.async_get_all_apartments()
             except SbmAuthError:
                 errors["base"] = "invalid_auth"
             except SbmError as err:
@@ -175,33 +178,58 @@ class SbmFizikusConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error while reauthenticating SBM Fizikus")
                 errors["base"] = "unknown"
             else:
-                self._async_update_other_apartments(entry, username, pwhash)
-                return self.async_update_reload_and_abort(
-                    entry, data_updates={CONF_PWHASH: pwhash}
-                )
+                apartment_ids = {apartment.apartment_id for apartment in apartments}
+                if entry.data[CONF_APARTMENT_ID] not in apartment_ids:
+                    errors["base"] = "wrong_account"
+                else:
+                    self._async_update_other_apartments(
+                        entry, old_username, apartment_ids, username, pwhash
+                    )
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates={CONF_USERNAME: username, CONF_PWHASH: pwhash},
+                    )
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=REAUTH_SCHEMA,
-            description_placeholders={CONF_USERNAME: username},
+            data_schema=self.add_suggested_values_to_schema(
+                REAUTH_SCHEMA,
+                {
+                    CONF_USERNAME: user_input[CONF_USERNAME]
+                    if user_input
+                    else old_username
+                },
+            ),
+            description_placeholders={CONF_USERNAME: old_username},
             errors=errors,
         )
 
     @callback
     def _async_update_other_apartments(
-        self, entry: ConfigEntry, username: str, pwhash: str
+        self,
+        entry: ConfigEntry,
+        old_username: str,
+        apartment_ids: set[int],
+        username: str,
+        pwhash: str,
     ) -> None:
-        """Give the new password to the other apartments of the account.
+        """Give the new login to the other apartments of the account.
 
-        They share the login, so they need the new password too. Reloading them
-        also closes their own reauthentication flows.
+        They share the login, so they need the new password, and the new username,
+        too. Only the apartments that the account still has get them. Reloading
+        them also closes their own reauthentication flows.
         """
         for other in self._async_current_entries(include_ignore=False):
             if (
                 other.entry_id != entry.entry_id
-                and other.data.get(CONF_USERNAME) == username
-                and other.data.get(CONF_PWHASH) != pwhash
+                and other.data.get(CONF_USERNAME) == old_username
+                and other.data.get(CONF_APARTMENT_ID) in apartment_ids
+                and (
+                    other.data.get(CONF_USERNAME) != username
+                    or other.data.get(CONF_PWHASH) != pwhash
+                )
             ):
                 self.hass.config_entries.async_update_entry(
-                    other, data={**other.data, CONF_PWHASH: pwhash}
+                    other,
+                    data={**other.data, CONF_USERNAME: username, CONF_PWHASH: pwhash},
                 )
                 self.hass.config_entries.async_schedule_reload(other.entry_id)
