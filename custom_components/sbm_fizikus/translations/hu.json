@@ -74,6 +74,9 @@
     "set_temperature_failed": {
       "message": "Nem sikerült beállítani a célhőmérsékletet: {error}"
     },
+    "switch_child_lock_failed": {
+      "message": "Nem sikerült zárolni vagy feloldani a termosztátot: {error}"
+    },
     "switch_system_failed": {
       "message": "Nem sikerült be- vagy kikapcsolni az SBM Fizikus rendszert: {error}"
     },

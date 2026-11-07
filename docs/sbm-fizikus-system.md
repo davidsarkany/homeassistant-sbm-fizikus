@@ -175,8 +175,8 @@ Already used: the login, the building and apartment lists, `get_apartment_data`,
 Worth knowing for later work:
 
 - **Building-level switch**: `get_building_data` `disabled` switches every apartment off, and the apartment's own `disabled` can still be `false` then. The integration does not read it yet, so a system switched off at building level would not show as off.
-- **Pending commands**: right after a change, `…Command` fields hold the new value until the device confirms it. Like the app, the integration shows the pending target temperature (`temperatureSetpointCommandDegC`) and the pending switching (`disabledCommand`) instead of the confirmed values. `childLockCommand` is not used yet.
-- **Child lock**: per room with `child_lock` in `update_thermostat_settings`; the state is `childLock` (or `childLockCommand`).
+- **Pending commands**: right after a change, `…Command` fields hold the new value until the device confirms it. Like the app, the integration shows the pending target temperature (`temperatureSetpointCommandDegC`) and the pending switching (`disabledCommand`) instead of the confirmed values. The integration shows the pending child lock (`childLockCommand`) the same way.
+- **Child lock**: per room with `child_lock` in `update_thermostat_settings`; the state is `childLock` (or `childLockCommand`). A lock that was never set is `null` (live capture, 2026-11-07).
 - **Dehumidifier**: `air_drying_max_level` in `update_apartment_settings`, only where `dehumidificationEquipment` is not `0`.
 - **Water values**: the forward and return temperature and the flow are what the app shows; the meters are not shown and partly implausible.
 - **`refresh_jw_token`** exists, but logging in again with the stored hash is enough for the integration.

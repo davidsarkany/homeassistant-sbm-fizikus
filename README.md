@@ -57,6 +57,7 @@ Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról
 | Temperature (hőmérséklet) | nem | Mért hőmérséklet. |
 | Target temperature (célhőmérséklet) | nem | Célhőmérséklet. |
 | System mode (rendszermód) | nem | Diagnosztikai: `off`, amíg a rendszer ki van kapcsolva, `heating` vagy `cooling`, amíg a termosztát aktív, egyébként `idle`. |
+| Child lock (gyerekzár) | nem | Konfigurációs kapcsoló: zárolja a termosztát gombjait, ahogy az alkalmazás helyiségkártyája. |
 
 A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület SBM által jelentett külső időjárása:
 
@@ -121,7 +122,7 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
 - A fűtés vagy hűtés a Home Assistantból nem módosítható. A másik mód kiválasztása nem jelez hibát, egyszerűen nem történik semmi.
 - Az a jelenet, amelyet kikapcsolt rendszernél (`off` módban) mentettél, bekapcsolt rendszernél hibát jelez, és a célhőmérsékletet sem állítja be: az `off` módot ilyenkor maga a Home Assistant utasítja el. Mentsd újra a jelenetet bekapcsolt rendszernél.
 - Ha a rendszert az egész épületre kikapcsolják, az integráció ezt nem látja: a **System** kapcsoló bekapcsolva marad, és a klíma-entitások sem váltanak `off`-ra. Az SBM Fizikus alkalmazás ilyenkor azt írja ki, hogy „Épület szinten a rendszer kikapcsolva”.
-- A mérők, az energia- és térfogatszámlálók, a gyerekzár és a hűtés kézi tiltása nem érhető el. A vízértékek közül csak az első csatornáé: a második csatornát az SBM nem bekötöttnek jelenti.
+- A mérők, az energia- és térfogatszámlálók, az épületszintű gyerekzár és a hűtés kézi tiltása nem érhető el. A vízértékek közül csak az első csatornáé: a második csatornát az SBM nem bekötöttnek jelenti.
 
 ## Hibaelhárítás
 

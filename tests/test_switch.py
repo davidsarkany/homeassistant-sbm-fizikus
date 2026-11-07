@@ -10,6 +10,8 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
+    EntityCategory,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -122,3 +124,87 @@ async def test_switch_with_refused_login_starts_reauth(
     assert err.value.translation_key == "auth_failed"
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert [flow["context"]["source"] for flow in flows] == [SOURCE_REAUTH]
+
+
+CHILD_LOCK = "switch.living_room_child_lock"
+SETTINGS = "update_thermostat_settings"
+
+
+async def test_child_lock_is_disabled_by_default(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    await setup_integration(hass, config_entry)
+
+    entry = entity_registry.async_get(CHILD_LOCK)
+    assert entry is not None
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert entry.entity_category is EntityCategory.CONFIG
+    assert entry.unique_id == f"{APARTMENT_ID}_1001_child_lock"
+
+
+@pytest.mark.parametrize(
+    ("service", "locked", "state"),
+    [(SERVICE_TURN_ON, True, STATE_ON), (SERVICE_TURN_OFF, False, STATE_OFF)],
+)
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_lock_a_thermostat(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    service: str,
+    locked: bool,
+    state: str,
+) -> None:
+    sbm.apartment_data["thermostats"][0]["childLock"] = not locked
+    await setup_integration(hass, config_entry)
+    assert hass.states.get(CHILD_LOCK).state != state
+    assert hass.states.get(CHILD_LOCK).name == "living-room Child lock"
+    # SBM reports the change as pending until the thermostat confirms it.
+    sbm.apartment_data["thermostats"][0]["childLockCommand"] = locked
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN, service, {ATTR_ENTITY_ID: CHILD_LOCK}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert sbm.payloads(SETTINGS) == [
+        {
+            "thermostat_id": 1001,
+            "child_lock": locked,
+            "jwt_token": sbm.payloads("get_apartment_data")[0]["jwt_token"],
+        }
+    ]
+    assert sbm.operations[-2:] == [SETTINGS, "get_apartment_data"]
+    assert hass.states.get(CHILD_LOCK).state == state
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_child_lock_failure(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+) -> None:
+    await setup_integration(hass, config_entry)
+    sbm.queue(SETTINGS, status=503, text="Unavailable")
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: CHILD_LOCK}, blocking=True
+        )
+
+    assert err.value.translation_key == "switch_child_lock_failed"
+    assert hass.states.get(CHILD_LOCK).state == STATE_OFF
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_child_lock_of_a_disconnected_thermostat(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+) -> None:
+    """Like the other entities of a thermostat, it needs SBM to reach it."""
+    sbm.apartment_data["communicationActiveThermostats"] = False
+
+    await setup_integration(hass, config_entry)
+
+    assert hass.states.get(CHILD_LOCK).state == STATE_UNAVAILABLE
+    assert hass.states.get(SYSTEM).state == STATE_ON

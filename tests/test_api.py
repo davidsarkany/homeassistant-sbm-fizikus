@@ -569,6 +569,7 @@ async def test_apartment_data(client: SbmClient) -> None:
         humidity=60,
         dew_point=15.9,
         target_temperature=23.0,
+        child_lock=False,
     )
     assert data.firmware_version == "1.2.11-legacy"
     assert not data.system_off
@@ -762,6 +763,7 @@ async def test_thermostat_values_that_are_missing_or_invalid(
         "humidity": None,
         "dew_point": None,
         "target_temperature": None,
+        "child_lock": False,
     }
     assert data.thermostats == {
         1: SbmThermostat(thermostat_id=1, **unknown),
@@ -845,7 +847,16 @@ async def test_request_rejects_non_finite_json_values(
     assert sbm.operations == []
 
 
-@pytest.mark.parametrize("answer", [[], {}, {"thermostat_id": "1001"}])
+@pytest.mark.parametrize(
+    "answer",
+    [
+        [],
+        {},
+        {"thermostat_id": "1001"},
+        {"thermostat_id": 1002},
+        {"thermostat_id": True},
+    ],
+)
 async def test_invalid_answer_to_set_target_temperature(
     client: SbmClient, sbm: SbmStub, answer: Any
 ) -> None:
@@ -881,3 +892,54 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
     )
 
     assert first == second
+
+
+@pytest.mark.parametrize(
+    ("lock", "command", "expected"),
+    [
+        # Live capture of 2026-11-07: a lock that was never set is null.
+        (None, None, False),
+        (True, None, True),
+        (False, None, False),
+        # A change that the thermostat has not confirmed yet.
+        (False, True, True),
+        (True, False, False),
+        (None, "yes", False),
+    ],
+)
+async def test_child_lock(
+    client: SbmClient, sbm: SbmStub, lock: Any, command: Any, expected: bool
+) -> None:
+    thermostat = sbm.apartment_data["thermostats"][0]
+    thermostat["childLock"] = lock
+    thermostat["childLockCommand"] = command
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
+
+    assert data.thermostats[LIVING_ROOM_ID].child_lock is expected
+
+
+@pytest.mark.parametrize("locked", [True, False])
+async def test_set_child_lock_request_body(
+    client: SbmClient, sbm: SbmStub, locked: bool
+) -> None:
+    """The body is the one the room card of the app sends."""
+    sbm.queue(LOGIN, json_body=token("jwt"))
+
+    await client.async_set_child_lock(LIVING_ROOM_ID, locked=locked)
+
+    value = "true" if locked else "false"
+    assert sbm.bodies[-1] == (
+        b'{"operation":"update_thermostat_settings","payload":{"thermostat_id":1001,'
+        b'"child_lock":' + value.encode() + b',"jwt_token":"jwt"}}'
+    )
+
+
+@pytest.mark.parametrize("answer", [{}, {"thermostat_id": 1002}])
+async def test_invalid_answer_to_set_child_lock(
+    client: SbmClient, sbm: SbmStub, answer: Any
+) -> None:
+    sbm.queue("update_thermostat_settings", json_body=answer)
+
+    with pytest.raises(SbmInvalidResponseError):
+        await client.async_set_child_lock(LIVING_ROOM_ID, locked=True)

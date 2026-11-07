@@ -24,7 +24,7 @@ Supported:
 Not supported:
 
 - Meters, energy and volume counters from `get_apartment_data`, and the second water channel (`…2…`), which SBM reports as not connected (`-1`).
-- The child lock (`childLock`) and the manual cooling disable (`coolingDisabledManually`).
+- The building-level child lock (`childLock` of `get_building_data`) and the manual cooling disable (`coolingDisabledManually`).
 - Changing heating or cooling, which is set centrally for the building.
 - The building-level switch (`disabled` of `get_building_data`): a system switched off for the whole building does not show as off.
 - SBM's refresh token (see [Open points](#open-points)).
@@ -140,6 +140,13 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - A test checks the entity IDs with the server language set to `en` and to `hu`.
 - Not chosen: translated names with entity IDs set by the integration. Home Assistant discourages setting `entity_id`, and such IDs would not follow a renamed device when the entity IDs are regenerated.
 
+### Child lock switch (one per thermostat)
+
+- A `switch` on the device of the thermostat, named `Child lock` (`switch.<room>_child_lock`), `unique_id` `{apartment_id}_{thermostat_id}_child_lock`, entity category config, disabled by default. It locks the buttons of the thermostat with `update_thermostat_settings` and `child_lock`, like the room card of the app, then refreshes.
+- On is `childLockCommand` while a change is pending, otherwise `childLock`, like the app. SBM reports `null` for a lock that was never set (live capture, 2026-11-07: every room), which is off.
+- Availability like the other entities of the thermostat. The answer must name the thermostat (`thermostat_id`), for the target temperature too.
+- Not chosen: the settings page of the app, which switches every room and sends the current target temperature with it; a lock per room is what the room card does, and one switch per room covers both.
+
 ### Switched-off system and the System switch
 
 - `system_off` is `disabledCommand` while a switching is pending, otherwise `disabled`, like the app, so the switch, the climate entities and the system mode show a switching at once. Switching the system does not affect the availability of the entities.
@@ -220,5 +227,4 @@ Because the device and entity names match, Home Assistant gives the new entities
 ## Open points
 
 - The SBM Fizikus web app renews its token with `refresh_jw_token` (payload `refresh_token`); the integration logs in again instead.
-- The web app switches the child lock with `update_thermostat_settings` (`child_lock`); the integration does not support it yet.
 - The bridge's README does not point to the integration yet.

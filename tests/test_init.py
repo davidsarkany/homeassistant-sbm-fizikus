@@ -195,6 +195,7 @@ async def test_entity_ids_match_the_bridge(
         for entity_id in [
             f"climate.{room}",
             f"sensor.{room}_dew_point",
+            f"switch.{room}_child_lock",
             *(f"sensor.{room}_{suffix}" for suffix in BRIDGE_SENSORS),
         ]
     }

@@ -55,6 +55,7 @@ Every thermostat is a device named after its room in SBM, linked to an **SBM Fiz
 | Temperature | no | Measured temperature. |
 | Target temperature | no | Target temperature. |
 | System mode | no | Diagnostic: `off` while the system is switched off, `heating` or `cooling` while the thermostat is active, otherwise `idle`. |
+| Child lock | no | Configuration switch: locks the buttons of the thermostat, like the room card of the app. |
 
 The **SBM Fizikus** device of the apartment has the switch of the system, and the outdoor weather that SBM reports for the building:
 
@@ -119,7 +120,7 @@ The names of all entities stay in English in every language, because Home Assist
 - Heating or cooling cannot be changed from Home Assistant. Choosing the other mode shows no error, nothing happens.
 - A scene saved while the system was switched off (in `off` mode) fails while the system is on, and does not set its target temperature either: Home Assistant itself refuses `off` then. Save the scene again while the system is on.
 - When the system is switched off for the whole building, the integration does not see it: the **System** switch stays on, and the climate entities do not switch to `off`. The SBM Fizikus app then shows "Épület szinten a rendszer kikapcsolva" (the system is switched off at building level).
-- Meters, energy and volume counters, the child lock and the manual cooling disable are not available. Of the water values only the first channel is: SBM reports the second channel as not connected.
+- Meters, energy and volume counters, the building-level child lock and the manual cooling disable are not available. Of the water values only the first channel is: SBM reports the second channel as not connected.
 
 ## Troubleshooting
 

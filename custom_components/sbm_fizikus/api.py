@@ -123,6 +123,10 @@ class SbmThermostat:
     # 0.1 °C, the resolution of the measured temperature.
     dew_point: float | None
     target_temperature: float | None
+    # The buttons of the thermostat are locked: `childLockCommand` while a change is
+    # pending, else `childLock`, like the app. SBM reports null for a thermostat
+    # whose lock was never set (live capture, 2026-11-07), which is unlocked.
+    child_lock: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,6 +206,14 @@ class SbmClient:
         await self._async_call(
             lambda token: self._async_update_thermostat_settings(
                 thermostat_id, setpoint, token
+            )
+        )
+
+    async def async_set_child_lock(self, thermostat_id: int, *, locked: bool) -> None:
+        """Lock or unlock the buttons of a thermostat, like the room card of the app."""
+        await self._async_call(
+            lambda token: self._async_update_thermostat(
+                thermostat_id, {"child_lock": locked}, token
             )
         )
 
@@ -345,15 +357,22 @@ class SbmClient:
         self, thermostat_id: int, setpoint: float, token: str
     ) -> None:
         """Send a new target temperature."""
+        await self._async_update_thermostat(
+            thermostat_id, {"temp_setpoint_degC": setpoint}, token
+        )
+
+    async def _async_update_thermostat(
+        self, thermostat_id: int, settings: Mapping[str, Any], token: str
+    ) -> None:
+        """Send settings of a thermostat, and check that SBM took them for it."""
         response = await self._async_request(
             "update_thermostat_settings",
-            {
-                "thermostat_id": thermostat_id,
-                "temp_setpoint_degC": setpoint,
-                "jwt_token": token,
-            },
+            {"thermostat_id": thermostat_id, **settings, "jwt_token": token},
         )
-        if not isinstance(response, dict) or not _is_int(response.get("thermostat_id")):
+        answered_id = (
+            response.get("thermostat_id") if isinstance(response, dict) else None
+        )
+        if not _is_int(answered_id) or answered_id != thermostat_id:
             raise SbmInvalidResponseError(
                 "SBM returned an invalid response to update_thermostat_settings"
             )
@@ -538,7 +557,16 @@ def _parse_thermostat(data: Mapping[str, Any]) -> SbmThermostat:
         humidity=_optional_whole_number(data.get("measuredHumPerc")),
         dew_point=_optional_tenths(data.get("dewPointDegC")),
         target_temperature=_target_temperature(data),
+        child_lock=_child_lock(data),
     )
+
+
+def _child_lock(data: Mapping[str, Any]) -> bool:
+    """Return whether the buttons are locked, a pending change first, like the app."""
+    pending = data.get("childLockCommand")
+    if isinstance(pending, bool):
+        return pending
+    return data.get("childLock") is True
 
 
 def _target_temperature(data: Mapping[str, Any]) -> float | None:

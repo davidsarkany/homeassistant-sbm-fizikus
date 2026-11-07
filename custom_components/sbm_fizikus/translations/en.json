@@ -74,6 +74,9 @@
     "set_temperature_failed": {
       "message": "Setting the target temperature failed: {error}"
     },
+    "switch_child_lock_failed": {
+      "message": "Locking or unlocking the thermostat failed: {error}"
+    },
     "switch_system_failed": {
       "message": "Switching the SBM Fizikus system on or off failed: {error}"
     },
