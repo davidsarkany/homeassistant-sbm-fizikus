@@ -5,10 +5,11 @@ This document describes the original SBM Fizikus system as far as it is visible 
 Sources, as of 2026-11-04:
 
 - The web app at <https://app.sbmfizikus.com/>: a React single-page app, bundle `static/js/main.1eb509a5.js`. Read as text, not run.
+- The web app's source, recovered from the bundle's source maps (for example `components/TemperatureCard.tsx`).
 - Live captures by the user: a `get_apartment_data` answer, and the `update_apartment_settings` call with its answer.
 - The anonymized fixtures of the MQTT bridge, which come from the same apartment on 2026-10-10.
 
-What the app does is a fact of the bundle. What a field means is marked as an inference where the bundle does not say it.
+What the app does is a fact of the bundle and its recovered source. What a field means is marked as an inference where the source does not say it.
 
 ## Parts of the system
 
@@ -49,7 +50,7 @@ SBM's own failures may come with status 500 too, so only these errors mean wrong
 
 - **Roles**: when `rights` lists more than one role and no `login_level` was sent, the app lets the user pick one and logs in again with it. Seen values: `ap_owner` (the owner of an apartment, in the user's token), `ap_resident` (a sub-user added by the owner).
 - **The token** is a JWT. Its claims: `username`, `account_id`, `exp`, `type` (`access`), `login_level`.
-- **`expiration`** looks like `2026-11-05 17:02:55.123456`, without an offset. The app parses it with `Date.parse` after replacing the space with `T`, which JavaScript reads as local time. The integration reads it as UTC; both refresh well before the end, and a rejected token leads to a new login anyway.
+- **`expiration`** is in UTC. In a live login on 2026-11-07 it was `2026-11-08 14:57:00.641435+00:00`, with an offset, and to the second the same as the token's `exp` claim: the token is valid for 24 hours, the refresh token (`refresh_token_expiration`) for 5 days. An earlier capture showed it without an offset (`2026-11-05 17:02:55.123456`). The app parses it with `Date.parse` after replacing the space with `T`; JavaScript reads a value without an offset as local time. The integration reads a value without an offset as UTC, and a rejected token leads to a new login anyway.
 
 ### `refresh_jw_token`
 
@@ -112,7 +113,7 @@ Per thermostat (`thermostats[]`):
 | `measuredTempDegC`, `measuredHumPerc` | The measured values. |
 | `dewPointDegC` | The dew point. In the user's answer it is the same for every room. |
 | `active` | The room calls for heating or cooling. The app shows the heating or cooling icon only while the system is on. |
-| `condensationRiskLevel` | Sets the style of the room card: `2` "dewPointDisabled", `0` "dewPointWarning"; the app uses `-1` while the system is off. The texts are "Hűtés letiltva – páralecsapódás várható" (cooling disabled, condensation expected) and "Szellőztess" (ventilate). Which level is which text is not clear from the bundle; in the user's answer every room has `0` in normal conditions. |
+| `condensationRiskLevel` | A notice on the room card. `1`: "Magas páratartalom" (high humidity), "Szellőztess, hogy elkerüld a párakicsapodást!" (ventilate to avoid condensation), with an orange icon. `2`: "Hűtés letiltva" (cooling disabled), "Párakicsapódás várható. Várj, amíg csökken a páratartalom, szellőztess többet!" (condensation expected; wait until the humidity drops, ventilate more). `0` shows no notice; in the user's answer every room has `0` in normal conditions. The app uses `-1` while the system is off, so no notice shows then. The card also gets the class "dewPointDisabled" at `2` and "dewPointWarning" at `0`, but the source has no style for either. |
 | `childLock`, `childLockCommand` | The child lock, and a change that SBM has not confirmed yet (shown instead when not `null`). |
 
 The `…Command` fields follow one pattern: they hold a value that the app sent and the device has not taken yet. SBM keeps the confirmed value in the field without `Command`.
@@ -127,6 +128,7 @@ What the live data shows about them (comparison with the fixture of the same apa
 - The heating energy rose by 83 kWh and the heating/cooling water volume by 26.5 m³. The cooling energy, the hot water and the cold water values did not change, and `lastMeterSynchronisation` is the string `"None"`.
 - Inference: the energy values are a register divided by 0.86 (the factor from megacalories to kWh): `3566.08488… × 0.86 = 3066.833`, and the same holds for the cooling and hot water energy. The hot water energy (1 656 156 kWh for 624.8 m³) cannot be right, so not every register is in the unit its name says.
 - `-1` marks a channel or value that is not connected (`…2…` fields, outdoor values).
+- `lastStateUpdate` is in UTC, without an offset, not in Budapest time. A live call on 2026-11-07 at 14:57:01 UTC (15:57 in Budapest) showed `2026-11-07 14:56:43.247542` for the thermostats and `2026-11-07 14:55:14.502484` for the apartment.
 
 ## Changing settings
 

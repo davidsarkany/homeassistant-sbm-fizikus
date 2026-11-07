@@ -57,7 +57,7 @@ Known facts:
 - A new setpoint first shows up as pending in `temperatureSetpointCommandDegC`; it moves to `temperatureSetpointDegC` (and the command becomes `null`) only when the thermostat confirms it, 1–2 minutes later. Switching the system works the same way with `disabledCommand` and `disabled`, confirmed within about 40–80 s, and the child lock with `childLockCommand` and `childLock`, within about 30–60 s (live captures, 2026-11-04 and 2026-11-07).
 - SBM keeps setpoints with 0.1 °C resolution, for example 22.3.
 - `disabled: true` means the system is switched off in the SBM Fizikus app. A switched-off system reported `communicationActiveRelayModule: false` in one capture and `true` in another, while its thermostats still report fresh values. The integration does not read that flag, see [Availability and logging](#availability-and-logging).
-- Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`.
+- Timestamps look like `2026-10-10 12:45:11.578277` (no offset, UTC) or `2026-10-11 12:45:26.411281+00:00`. A live check on 2026-11-07 confirmed UTC for `lastStateUpdate` and the token `expiration`.
 - 401 and 403 mean the token was rejected.
 - A refused login is HTTP 500 with `{"error": "invalid password"}` or `{"error": "user not found"}` (live captures, 2026-11-07), not a 401 or 403.
 - Numbers come as integers or floats (`19`, `23.2`); unused meter channels are `-1`.
