@@ -186,6 +186,9 @@ async def test_entity_ids_match_the_bridge(
         "sensor.sbm_fizikus_outdoor_temperature",
         "sensor.sbm_fizikus_outdoor_humidity",
         "switch.sbm_fizikus_system",
+        "sensor.sbm_fizikus_forward_water_temperature",
+        "sensor.sbm_fizikus_return_water_temperature",
+        "sensor.sbm_fizikus_flow_rate",
     } | {
         entity_id
         for room in ROOMS

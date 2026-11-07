@@ -12,9 +12,11 @@ from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_UNIT_OF_MEASUREMENT,
     PERCENTAGE,
+    STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     EntityCategory,
     UnitOfTemperature,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -143,3 +145,96 @@ async def test_system_mode_of_a_switched_off_system(
     await setup_integration(hass, config_entry)
 
     assert hass.states.get("sensor.living_room_system_mode").state == "off"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_water_sensors(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The values of the "Statisztika" page of the app, on the apartment device."""
+    sbm.apartment_data["forwardWaterTemperature1DegC"] = 26.0
+    sbm.apartment_data["returningWaterTemperature1DegC"] = 25.4
+    sbm.apartment_data["flowRateLiterPerHour1"] = 12.5
+
+    await setup_integration(hass, config_entry)
+
+    for entity_id, value, device_class, unit in [
+        (
+            "sensor.sbm_fizikus_forward_water_temperature",
+            "26.0",
+            SensorDeviceClass.TEMPERATURE,
+            UnitOfTemperature.CELSIUS,
+        ),
+        (
+            "sensor.sbm_fizikus_return_water_temperature",
+            "25.4",
+            SensorDeviceClass.TEMPERATURE,
+            UnitOfTemperature.CELSIUS,
+        ),
+        (
+            "sensor.sbm_fizikus_flow_rate",
+            "12.5",
+            SensorDeviceClass.VOLUME_FLOW_RATE,
+            UnitOfVolumeFlowRate.LITERS_PER_HOUR,
+        ),
+    ]:
+        state = hass.states.get(entity_id)
+        assert state.state == value
+        assert state.attributes[ATTR_DEVICE_CLASS] == device_class
+        assert state.attributes[ATTR_STATE_CLASS] == SensorStateClass.MEASUREMENT
+        assert state.attributes[ATTR_UNIT_OF_MEASUREMENT] == unit
+        entry = entity_registry.async_get(entity_id)
+        assert entry is not None
+        assert entry.unique_id == f"123_{entity_id.removeprefix('sensor.sbm_fizikus_')}"
+
+
+async def test_water_sensors_are_disabled_by_default(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    await setup_integration(hass, config_entry)
+
+    entry = entity_registry.async_get("sensor.sbm_fizikus_flow_rate")
+    assert entry is not None
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+
+
+@pytest.mark.parametrize("value", [-1, -1.0, None, "26.0"])
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_water_channel_that_is_not_connected(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry, value: object
+) -> None:
+    """SBM reports -1 for a water channel that is not connected."""
+    for key in [
+        "forwardWaterTemperature1DegC",
+        "returningWaterTemperature1DegC",
+        "flowRateLiterPerHour1",
+    ]:
+        sbm.apartment_data[key] = value
+
+    await setup_integration(hass, config_entry)
+
+    for suffix in [
+        "forward_water_temperature",
+        "return_water_temperature",
+        "flow_rate",
+    ]:
+        assert hass.states.get(f"sensor.sbm_fizikus_{suffix}").state == STATE_UNKNOWN
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_water_sensors_do_not_depend_on_the_thermostats(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+) -> None:
+    """The device of the apartment reports them, not the thermostats."""
+    sbm.apartment_data["communicationActiveThermostats"] = False
+
+    await setup_integration(hass, config_entry)
+
+    assert hass.states.get("sensor.sbm_fizikus_flow_rate").state == "0.0"
+    assert hass.states.get("sensor.living_room_humidity").state == STATE_UNAVAILABLE

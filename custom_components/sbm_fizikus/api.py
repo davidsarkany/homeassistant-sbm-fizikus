@@ -44,6 +44,8 @@ _ANSWERS_NOT_LOGGED: Final = frozenset({"get_jw_token", "get_building_access_rig
 _LOGIN_REFUSALS: Final = frozenset({"invalid password", "user not found"})
 # What SBM reports for an outdoor value it does not know.
 _UNKNOWN_OUTDOOR_VALUE: Final = -1.0
+# What SBM reports for a value of a water channel that is not connected.
+_NOT_CONNECTED: Final = -1.0
 
 
 class SbmError(Exception):
@@ -137,6 +139,12 @@ class SbmApartmentData:
     thermostats: Mapping[int, SbmThermostat]
     # The firmware of the SBM Fizikus device of the apartment, None when not reported.
     firmware_version: str | None
+    # The water from the heat center, the water going back, and the flow through the
+    # apartment, on the first channel; the values of the "Statisztika" page of the
+    # app. None when not reported or not connected (-1).
+    forward_water_temperature: float | None
+    return_water_temperature: float | None
+    flow_rate: float | None
     # The decoded answer of SBM, for diagnostics.
     raw: Mapping[str, Any] = field(compare=False, repr=False)
 
@@ -505,6 +513,13 @@ def _parse_apartment_data(response: Any) -> SbmApartmentData:
             for thermostat in thermostats
         },
         firmware_version=_optional_text(response.get("fwVer")),
+        forward_water_temperature=_optional_connected_value(
+            response.get("forwardWaterTemperature1DegC")
+        ),
+        return_water_temperature=_optional_connected_value(
+            response.get("returningWaterTemperature1DegC")
+        ),
+        flow_rate=_optional_connected_value(response.get("flowRateLiterPerHour1")),
         raw=response,
     )
 
@@ -592,6 +607,17 @@ def _optional_tenths(value: Any) -> float | None:
     if number is None:
         return None
     return float(Decimal(str(number)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
+def _optional_connected_value(value: Any) -> float | None:
+    """Return a finite JSON number as a float, None for -1 or anything else.
+
+    SBM reports -1 for a water channel that is not connected. Water in the pipes of
+    a building is never at -1 °C, and a flow is never negative, so -1 is not a real
+    value here.
+    """
+    number = _optional_float(value)
+    return None if number == _NOT_CONNECTED else number
 
 
 def _row_float(row: list[Any], index: int) -> float | None:

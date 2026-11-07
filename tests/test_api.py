@@ -863,6 +863,9 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
         system_off=False,
         thermostats={},
         firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
         raw={"lastStateUpdate": "2026-10-10 12:45:11.578277"},
     )
     second = SbmApartmentData(
@@ -871,6 +874,9 @@ def test_apartment_data_equality_ignores_the_raw_answer() -> None:
         system_off=False,
         thermostats={},
         firmware_version=None,
+        forward_water_temperature=None,
+        return_water_temperature=None,
+        flow_rate=None,
         raw={"lastStateUpdate": "2026-10-10 12:47:11.578277"},
     )
 

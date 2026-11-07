@@ -63,6 +63,9 @@ The **SBM Fizikus** device of the apartment has the switch of the system, and th
 | System | yes | Switches the SBM Fizikus system of the apartment on or off, like the SBM Fizikus app. |
 | Outdoor temperature | no | Outdoor temperature of the building. |
 | Outdoor humidity | no | Outdoor relative humidity of the building. |
+| Forward water temperature | no | Temperature of the water coming from the heat center. |
+| Return water temperature | no | Temperature of the water going back. |
+| Flow rate | no | Water flowing through the apartment, in l/h. |
 
 - The **target temperature** can be set between 5 and 35 °C. SBM keeps it with 0.1 °C resolution: the card steps by 0.5 °C, and other values (for example from an automation) are rounded to 0.1 °C.
 - **Heating or cooling** is set centrally for the whole building, so the HVAC mode can only be read. Choosing the other mode has no effect, like with the bridge, so scenes set their target temperature also when they were saved in the other mode. While the SBM Fizikus system is switched off, the mode is `off`; switch the system on and off with the **System** switch. The climate entities do not switch it themselves, because that would switch every room, for example when an automation turns off one room for an open window. When SBM reports a mode the integration does not know, the state is `unknown`.
@@ -116,7 +119,7 @@ The names of all entities stay in English in every language, because Home Assist
 - Heating or cooling cannot be changed from Home Assistant. Choosing the other mode shows no error, nothing happens.
 - A scene saved while the system was switched off (in `off` mode) fails while the system is on, and does not set its target temperature either: Home Assistant itself refuses `off` then. Save the scene again while the system is on.
 - When the system is switched off for the whole building, the integration does not see it: the **System** switch stays on, and the climate entities do not switch to `off`. The SBM Fizikus app then shows "Épület szinten a rendszer kikapcsolva" (the system is switched off at building level).
-- Meters, water temperatures, flow rates, energy and volume counters, the child lock and the manual cooling disable are not available.
+- Meters, energy and volume counters, the child lock and the manual cooling disable are not available. Of the water values only the first channel is: SBM reports the second channel as not connected.
 
 ## Troubleshooting
 

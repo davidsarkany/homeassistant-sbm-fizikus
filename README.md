@@ -65,6 +65,9 @@ A lakás **SBM Fizikus** eszközén van a rendszer kapcsolója, és az épület 
 | System (rendszer) | igen | Be- vagy kikapcsolja a lakás SBM Fizikus rendszerét, ahogy az SBM Fizikus alkalmazás. |
 | Outdoor temperature (külső hőmérséklet) | nem | Az épület külső hőmérséklete. |
 | Outdoor humidity (külső páratartalom) | nem | Az épület külső relatív páratartalma. |
+| Forward water temperature (előremenő vízhőmérséklet) | nem | A hőközpontból érkező víz hőmérséklete. |
+| Return water temperature (visszatérő vízhőmérséklet) | nem | A visszamenő víz hőmérséklete. |
+| Flow rate (átfolyás) | nem | A lakáson átfolyó víz mennyisége, l/h-ban. |
 
 - A **célhőmérséklet** 5 és 35 °C között állítható. Az SBM 0,1 °C felbontással tárolja: a kártya 0,5 °C-os lépésekben állít, más értékeket (például egy automatizálásból) 0,1 °C-ra kerekít.
 - A **fűtést vagy hűtést** központilag, az egész épületre állítják be, ezért a HVAC-mód csak olvasható. A másik mód kiválasztásának nincs hatása, ahogy a hídnál sem; így a jelenetek akkor is beállítják a célhőmérsékletet, ha egy másik módban mentetted őket. Amíg az SBM Fizikus rendszer ki van kapcsolva, a mód `off`; a rendszert a **System** kapcsolóval kapcsolhatod be és ki. A klíma-entitások ezt nem kapcsolják maguk, mert az minden helyiséget kapcsolna, például ha egy automatizálás nyitott ablak miatt kikapcsol egy szobát. Ha az SBM olyan módot jelent, amelyet az integráció nem ismer, az állapot `unknown`.
@@ -118,7 +121,7 @@ Minden entitás neve minden nyelven angol marad, mert a Home Assistant az új en
 - A fűtés vagy hűtés a Home Assistantból nem módosítható. A másik mód kiválasztása nem jelez hibát, egyszerűen nem történik semmi.
 - Az a jelenet, amelyet kikapcsolt rendszernél (`off` módban) mentettél, bekapcsolt rendszernél hibát jelez, és a célhőmérsékletet sem állítja be: az `off` módot ilyenkor maga a Home Assistant utasítja el. Mentsd újra a jelenetet bekapcsolt rendszernél.
 - Ha a rendszert az egész épületre kikapcsolják, az integráció ezt nem látja: a **System** kapcsoló bekapcsolva marad, és a klíma-entitások sem váltanak `off`-ra. Az SBM Fizikus alkalmazás ilyenkor azt írja ki, hogy „Épület szinten a rendszer kikapcsolva”.
-- A mérők, a vízhőmérsékletek, az átfolyási értékek, az energia- és térfogatszámlálók, a gyerekzár és a hűtés kézi tiltása nem érhető el.
+- A mérők, az energia- és térfogatszámlálók, a gyerekzár és a hűtés kézi tiltása nem érhető el. A vízértékek közül csak az első csatornáé: a második csatornát az SBM nem bekötöttnek jelenti.
 
 ## Hibaelhárítás
 

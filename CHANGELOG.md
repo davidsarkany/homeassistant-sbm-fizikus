@@ -5,6 +5,7 @@
 - Fixed: a wrong password or username is recognized. SBM refuses a login with status 500, which the integration took for an outage: the setup said it could not connect, and after a password change the entities stayed unavailable without asking for the new password. Now the setup says the username or password is invalid, and Home Assistant asks for the password again. Other failures of SBM still count as an outage.
 - Fixed: the dew point is rounded to 0.1 °C (`13.0 °C`, not `13.04477696992492 °C`). SBM sends it with full precision. The values recorded before stay as they are.
 - The device of the apartment shows a new firmware version at the next poll, without a reload or restart.
+- New: forward and return water temperature and flow rate sensors on the device of the apartment (disabled by default), the values of the "Statisztika" page of the SBM Fizikus app.
 - When Home Assistant asks for the password again, the username can be changed too, for example after a new email address in the SBM Fizikus app. The account must have access to the apartment. The other apartments of the account get the new login too.
 
 ## 0.1.3 (2026-11-07)

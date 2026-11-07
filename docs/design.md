@@ -23,7 +23,7 @@ Supported:
 
 Not supported:
 
-- Meters, water temperatures and flow, energy and volume counters from `get_apartment_data`.
+- Meters, energy and volume counters from `get_apartment_data`, and the second water channel (`…2…`), which SBM reports as not connected (`-1`).
 - The child lock (`childLock`) and the manual cooling disable (`coolingDisabledManually`).
 - Changing heating or cooling, which is set centrally for the building.
 - The building-level switch (`disabled` of `get_building_data`): a system switched off for the whole building does not show as off.
@@ -146,6 +146,18 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - A `switch` on the apartment device, named `System`, `unique_id` `{apartment_id}_system`, enabled by default, sends `update_apartment_settings` like the app and then refreshes. `PARALLEL_UPDATES = 1`.
 - The climate entities show `off` but do not switch the system: off for one room, for example from an automation for an open window, would switch off every room.
 - The target temperature can still be set while the system is off.
+
+### Water sensors (on the apartment device)
+
+| Key | Name | Value | Class | Enabled by default |
+|---|---|---|---|---|
+| `forward_water_temperature` | Forward water temperature | `forwardWaterTemperature1DegC` | temperature, measurement, °C | no |
+| `return_water_temperature` | Return water temperature | `returningWaterTemperature1DegC` | temperature, measurement, °C | no |
+| `flow_rate` | Flow rate | `flowRateLiterPerHour1` | volume flow rate, measurement, L/h | no |
+
+- The only values of the "Statisztika" page of the app (live capture, 2026-11-07: 26.0 °C, 25.4 °C, 0.0 L/h). They come with every `get_apartment_data`, so they need no request of their own. `unique_id` = `{apartment_id}_{key}`, entity IDs `sensor.sbm_fizikus_<key>`.
+- `-1` means a channel that is not connected, so it is unknown: water in the pipes is never at -1 °C, and a flow is never negative. Only the first channel; SBM reports the second one as `-1`.
+- The device of the apartment reports them, not the thermostats, so they stay available when SBM does not reach the thermostats, like the System switch.
 
 ### Outdoor sensors (on the apartment device)
 
