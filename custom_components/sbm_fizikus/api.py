@@ -117,6 +117,8 @@ class SbmThermostat:
     temperature: float | None
     # The thermostats measure whole percents, and SBM sends them as integers.
     humidity: int | None
+    # SBM computes it with full precision, like 13.04477696992492; it is rounded to
+    # 0.1 °C, the resolution of the measured temperature.
     dew_point: float | None
     target_temperature: float | None
 
@@ -519,7 +521,7 @@ def _parse_thermostat(data: Mapping[str, Any]) -> SbmThermostat:
         active=data.get("active") is True,
         temperature=_optional_float(data.get("measuredTempDegC")),
         humidity=_optional_whole_number(data.get("measuredHumPerc")),
-        dew_point=_optional_float(data.get("dewPointDegC")),
+        dew_point=_optional_tenths(data.get("dewPointDegC")),
         target_temperature=_target_temperature(data),
     )
 
@@ -582,6 +584,14 @@ def _optional_whole_number(value: Any) -> int | None:
     if number is None:
         return None
     return int(Decimal(str(number)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _optional_tenths(value: Any) -> float | None:
+    """Return a finite JSON number rounded half up to 0.1, anything else as None."""
+    number = _optional_float(value)
+    if number is None:
+        return None
+    return float(Decimal(str(number)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
 def _row_float(row: list[Any], index: int) -> float | None:

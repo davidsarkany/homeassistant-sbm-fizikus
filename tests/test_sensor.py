@@ -42,7 +42,7 @@ async def test_sensors(
     for entity_id, value in [
         ("sensor.living_room_temperature", 24.8),
         ("sensor.living_room_target_temperature", 23.0),
-        ("sensor.living_room_dew_point", 15.934023536720074),
+        ("sensor.living_room_dew_point", 15.9),
     ]:
         state = hass.states.get(entity_id)
         assert float(state.state) == pytest.approx(value)

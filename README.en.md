@@ -51,7 +51,7 @@ Every thermostat is a device named after its room in SBM, linked to an **SBM Fiz
 |---|---|---|
 | Climate | yes | Measured temperature and humidity, target temperature, heating or cooling, and whether the thermostat is active. |
 | Humidity | yes | Measured relative humidity. |
-| Dew point | no | Dew point calculated by SBM. |
+| Dew point | no | Dew point calculated by SBM, rounded to 0.1 °C. |
 | Temperature | no | Measured temperature. |
 | Target temperature | no | Target temperature. |
 | System mode | no | Diagnostic: `off` while the system is switched off, `heating` or `cooling` while the thermostat is active, otherwise `idle`. |

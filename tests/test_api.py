@@ -567,7 +567,7 @@ async def test_apartment_data(client: SbmClient) -> None:
         active=False,
         temperature=24.8,
         humidity=60,
-        dew_point=15.934023536720074,
+        dew_point=15.9,
         target_temperature=23.0,
     )
     assert data.firmware_version == "1.2.11-legacy"
@@ -694,6 +694,29 @@ async def test_humidity_is_a_whole_number(
     value = data.thermostats[LIVING_ROOM_ID].humidity
     assert value == expected
     assert type(value) is int
+
+
+@pytest.mark.parametrize(
+    ("dew_point", "expected"),
+    [
+        # Live capture of 2026-11-07: SBM sends the dew point with full precision.
+        (13.04477696992492, 13.0),
+        (15.934023536720074, 15.9),
+        (12.25, 12.3),
+        (-0.05, -0.1),
+        (14, 14.0),
+    ],
+)
+async def test_dew_point_is_rounded_to_tenths(
+    client: SbmClient, sbm: SbmStub, dew_point: float, expected: float
+) -> None:
+    sbm.apartment_data["thermostats"][0]["dewPointDegC"] = dew_point
+
+    data = await client.async_get_apartment_data(APARTMENT_ID)
+
+    value = data.thermostats[LIVING_ROOM_ID].dew_point
+    assert value == expected
+    assert type(value) is float
 
 
 @pytest.mark.parametrize("relay_module", [True, False, None])

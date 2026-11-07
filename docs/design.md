@@ -123,7 +123,7 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 | Key | Name | Value | Class | Enabled by default |
 |---|---|---|---|---|
 | `humidity` | Humidity | `measuredHumPerc` as an integer: the thermostats measure whole percents and SBM sends integers like `62` (live capture, 2026-11-04); a float would be rounded half up | humidity, measurement, % | yes |
-| `dew_point` | Dew point | `dewPointDegC` | temperature, measurement, °C | no |
+| `dew_point` | Dew point | `dewPointDegC` rounded half up to 0.1 °C: SBM sends it with full precision, like `13.04477696992492` (live capture, 2026-11-07), and the same value for every thermostat | temperature, measurement, °C | no |
 | `temperature` | Temperature | `measuredTempDegC` | temperature, measurement, °C | no |
 | `target_temperature` | Target temperature | `temperatureSetpointCommandDegC` while pending, otherwise `temperatureSetpointDegC` | temperature, measurement, °C | no |
 | `system_mode` | System mode | `off` while the system is switched off, `heating` / `cooling` while active, otherwise `idle`; unknown while active with an unknown mode | enum (`heating`, `cooling`, `idle`, `off`), diagnostic | no |

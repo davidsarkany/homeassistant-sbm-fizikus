@@ -53,7 +53,7 @@ Az entitások neve minden nyelven angol (lásd [lent](#váltás-az-mqtt-hídról
 |---|---|---|
 | Klíma | igen | Mért hőmérséklet és páratartalom, célhőmérséklet, fűtés vagy hűtés, és hogy a termosztát aktív-e. |
 | Humidity (páratartalom) | igen | Mért relatív páratartalom. |
-| Dew point (harmatpont) | nem | Az SBM által számított harmatpont. |
+| Dew point (harmatpont) | nem | Az SBM által számított harmatpont, 0,1 °C-ra kerekítve. |
 | Temperature (hőmérséklet) | nem | Mért hőmérséklet. |
 | Target temperature (célhőmérséklet) | nem | Célhőmérséklet. |
 | System mode (rendszermód) | nem | Diagnosztikai: `off`, amíg a rendszer ki van kapcsolva, `heating` vagy `cooling`, amíg a termosztát aktív, egyébként `idle`. |
