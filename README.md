@@ -41,7 +41,7 @@ Az integrációt csak a letöltés és a Home Assistant újraindítása után le
 
 Minden lakás külön bejegyzés, saját termosztátokkal. A fiók egy másik lakásához add hozzá újra az integrációt: csak a még be nem állított lakásokat kínálja fel.
 
-Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezést, például mert megváltoztattad a jelszót, a Home Assistant értesítést jelenít meg, és újra kéri a jelszót. Ha az egyik lakásnál megadod, az ugyanahhoz a fiókhoz tartozó többi lakásnál is frissül.
+Más beállítás nincs. Ha az SBM később elutasítja a mentett bejelentkezést, például mert megváltoztattad a jelszót, a Home Assistant értesítést jelenít meg, és újra kéri a jelszót. Ugyanitt a felhasználónevet is módosíthatod, ha az SBM Fizikus alkalmazásba már mással jelentkezel be; az új fióknak hozzá kell férnie a lakáshoz. Ha az egyik lakásnál megadod, az ugyanahhoz a fiókhoz tartozó többi lakásnál is frissül.
 
 ## Entitások
 

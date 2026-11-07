@@ -9,7 +9,8 @@
     "error": {
       "cannot_connect": "Failed to connect to SBM.",
       "invalid_auth": "Invalid username or password.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "wrong_account": "This account has no access to the apartment. Sign in with the account that the apartment was set up with."
     },
     "step": {
       "apartment": {
@@ -24,12 +25,14 @@
       },
       "reauth_confirm": {
         "data": {
-          "password": "Password"
+          "password": "Password",
+          "username": "Username or email"
         },
         "data_description": {
-          "password": "The password of the account. Home Assistant stores only a hash of it."
+          "password": "The password of the account. Home Assistant stores only a hash of it.",
+          "username": "Change it only if you sign in to the SBM Fizikus app with another username or email now."
         },
-        "description": "SBM refused the login of {username}. Enter the password of the account again.",
+        "description": "SBM refused the login of {username}. Enter the password of the account again, and the username if it changed.",
         "title": "Re-enter the SBM password"
       },
       "user": {

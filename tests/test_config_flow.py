@@ -33,6 +33,15 @@ USER_INPUT = {CONF_USERNAME: USERNAME, CONF_PASSWORD: PASSWORD}
 SEVERAL_APARTMENTS = [[24, APARTMENT_ID, APARTMENT_NAME, True], [24, 703, None, True]]
 
 
+def suggested_values(result: ConfigFlowResult) -> dict[str, Any]:
+    """Return the values that a form suggests."""
+    return {
+        str(key): key.description["suggested_value"]
+        for key in result["data_schema"].schema
+        if key.description
+    }
+
+
 def apartment_options(result: ConfigFlowResult) -> list[dict[str, str]]:
     """Return the apartments that the apartment step offers."""
     (selector,) = result["data_schema"].schema.values()
@@ -279,9 +288,11 @@ async def test_reauth_flow(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
     assert result["description_placeholders"][CONF_USERNAME] == USERNAME
+    # The form offers the username of the entry.
+    assert suggested_values(result) == {CONF_USERNAME: USERNAME}
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+        result["flow_id"], USER_INPUT
     )
     await hass.async_block_till_done()
 
@@ -294,9 +305,80 @@ async def test_reauth_flow(
     }
     assert config_entry.state is ConfigEntryState.LOADED
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
-    # The flow checked the new password with the apartment of the entry.
+    # The flow checked that the account still has the apartment of the entry.
     assert sbm.payloads("get_jw_token")[0]["pwhash"] == PWHASH
-    assert sbm.payloads("get_apartment_data")[0]["apartment_id"] == APARTMENT_ID
+    assert "get_apartment_access_rights" in sbm.operations
+
+
+async def test_reauth_flow_with_a_new_username(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+) -> None:
+    """A changed username is taken, by the other apartments of the account too."""
+    old_username = "old@example.com"
+    new_username = "new@example.com"
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, data={**config_entry.data, CONF_USERNAME: old_username}
+    )
+    other_apartment = MockConfigEntry(
+        domain=DOMAIN,
+        title="BP-TEST-001-102",
+        unique_id="703",
+        data={CONF_USERNAME: old_username, CONF_PWHASH: PWHASH, CONF_APARTMENT_ID: 703},
+    )
+    # The new account no longer has this one, so it keeps the old login.
+    lost_apartment = MockConfigEntry(
+        domain=DOMAIN,
+        title="BP-TEST-001-103",
+        unique_id="704",
+        data={CONF_USERNAME: old_username, CONF_PWHASH: PWHASH, CONF_APARTMENT_ID: 704},
+    )
+    other_apartment.add_to_hass(hass)
+    lost_apartment.add_to_hass(hass)
+    sbm.queue("get_apartment_access_rights", json_body=SEVERAL_APARTMENTS)
+    result = await config_entry.start_reauth_flow(hass)
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_USERNAME: f" {new_username} ", CONF_PASSWORD: PASSWORD},
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert sbm.payloads("get_jw_token")[0]["username_or_email"] == new_username
+    assert config_entry.data[CONF_USERNAME] == new_username
+    assert other_apartment.data[CONF_USERNAME] == new_username
+    assert other_apartment.data[CONF_PWHASH] == PWHASH
+    assert lost_apartment.data[CONF_USERNAME] == old_username
+
+
+async def test_reauth_flow_with_an_account_without_the_apartment(
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
+) -> None:
+    """A username cannot move the entry to an account without its apartment."""
+    config_entry.add_to_hass(hass)
+    sbm.queue("get_apartment_access_rights", json_body=[[24, 703, None, True]])
+    result = await config_entry.start_reauth_flow(hass)
+    other_account = {CONF_USERNAME: "other@example.com", CONF_PASSWORD: PASSWORD}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], other_account
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "wrong_account"}
+    # The form keeps the username that was entered.
+    assert suggested_values(result) == {CONF_USERNAME: "other@example.com"}
+    assert config_entry.data[CONF_USERNAME] == USERNAME
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], USER_INPUT
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
 
 
 @pytest.mark.parametrize(
@@ -310,7 +392,7 @@ async def test_reauth_flow(
         ),
         ("get_jw_token", {"status": 404}, "cannot_connect"),
         ("get_jw_token", {"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
-        ("get_apartment_data", {"status": 502}, "cannot_connect"),
+        ("get_building_access_rights", {"status": 502}, "cannot_connect"),
     ],
 )
 async def test_reauth_flow_error_and_recovery(
@@ -326,14 +408,14 @@ async def test_reauth_flow_error_and_recovery(
     result = await config_entry.start_reauth_flow(hass)
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+        result["flow_id"], USER_INPUT
     )
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": error}
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+        result["flow_id"], USER_INPUT
     )
     await hass.async_block_till_done()
 
@@ -367,9 +449,7 @@ async def test_reauth_flow_logs_why_sbm_cannot_be_reached(
     sbm.queue("get_jw_token", exc=TimeoutError())
     result = await config_entry.start_reauth_flow(hass)
 
-    await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
-    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
 
     assert (
         "WARNING",
@@ -403,12 +483,14 @@ async def test_reauth_updates_the_other_apartments_of_the_account(
     )
     other_apartment.add_to_hass(hass)
     other_account.add_to_hass(hass)
+    # The account has both apartments.
+    sbm.queue("get_apartment_access_rights", json_body=SEVERAL_APARTMENTS)
     # SBM refused the old password for the other apartment too.
     await other_apartment.start_reauth_flow(hass)
 
     result = await config_entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+        result["flow_id"], USER_INPUT
     )
     await hass.async_block_till_done()
 
@@ -429,18 +511,18 @@ async def test_reauth_flow_unexpected_error_and_recovery(
     config_entry.add_to_hass(hass)
     result = await config_entry.start_reauth_flow(hass)
     with patch(
-        "custom_components.sbm_fizikus.config_flow.SbmClient.async_get_apartment_data",
+        "custom_components.sbm_fizikus.config_flow.SbmClient.async_get_all_apartments",
         side_effect=RuntimeError("boom"),
     ):
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {CONF_PASSWORD: PASSWORD}
+            result["flow_id"], USER_INPUT
         )
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "unknown"}
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_PASSWORD: PASSWORD}
+        result["flow_id"], USER_INPUT
     )
     await hass.async_block_till_done()
 

@@ -41,7 +41,7 @@ The integration can only be set up after it is downloaded and Home Assistant was
 
 Every apartment is a separate entry with its own thermostats. To add another apartment of the account, add the integration again: it offers only the apartments that are not set up yet.
 
-There are no other options. When SBM refuses the saved login later, for example after you changed the password, Home Assistant shows a notification and asks you to enter the password again. Entering it for one apartment updates the other apartments of the same account too.
+There are no other options. When SBM refuses the saved login later, for example after you changed the password, Home Assistant shows a notification and asks you to enter the password again. You can change the username there too, if you sign in to the SBM Fizikus app with another one now; the account must have access to the apartment. Entering it for one apartment updates the other apartments of the same account too.
 
 ## Entities
 
