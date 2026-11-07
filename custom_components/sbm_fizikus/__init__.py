@@ -84,6 +84,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: SbmFizikusConfigEntry) -
         )
 
     entry.async_on_unload(coordinator.async_add_listener(async_update_firmware_version))
+
+    @callback
+    def async_update_thermostat_names() -> None:
+        """Update reported room names, preserving user overrides and entity IDs."""
+        for thermostat in coordinator.data.thermostats.values():
+            if thermostat.name is None:
+                continue
+            device = device_registry.async_get_device_by_identifier(
+                (
+                    DOMAIN,
+                    thermostat_device_identifier(
+                        coordinator.apartment_id, thermostat.thermostat_id
+                    ),
+                ),
+                entry.entry_id,
+            )
+            if device is not None and device.name != thermostat.name:
+                device_registry.async_update_device(device.id, name=thermostat.name)
+
+    entry.async_on_unload(coordinator.async_add_listener(async_update_thermostat_names))
     entry.runtime_data = SbmFizikusData(
         coordinator,
         # Polls only for enabled outdoor sensors, so it has no first refresh here.

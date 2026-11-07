@@ -137,6 +137,7 @@ Home Assistant builds the entity ID of a new entity from its name in the languag
 - Every entity has a fixed English name, so no entity ID depends on the language, and the bridge's entities keep their IDs. The names stay English in every UI language.
 - `translation_key` is used only for translated states, such as those of `system_mode`. A translated name would take precedence over the `name` of the entity description (only `_attr_name` takes precedence over a translation), so the translation files must not have a `name` for these keys.
 - Device names come from SBM or are the fixed `SBM Fizikus` and `Thermostat {id}`.
+- Changed room names update the device registry at the next poll. Only the reported name is updated: user-defined device and entity names and existing entity IDs are preserved. Missing names keep the last known name.
 - A test checks the entity IDs with the server language set to `en` and to `hu`.
 - Not chosen: translated names with entity IDs set by the integration. Home Assistant discourages setting `entity_id`, and such IDs would not follow a renamed device when the entity IDs are regenerated.
 

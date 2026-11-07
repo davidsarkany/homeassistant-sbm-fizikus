@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed: room names changed in SBM update at the next poll without a reload. Custom names in Home Assistant and existing entity IDs are preserved; a missing room name keeps the last known name.
 - Fixed: a login response with a missing or invalid token is treated as an API failure instead of invalid credentials. Home Assistant retries automatically instead of asking for the password again.
 - Fixed: building API responses are also redacted in error messages, so building addresses stay out of logs when a request fails or returns invalid JSON.
 

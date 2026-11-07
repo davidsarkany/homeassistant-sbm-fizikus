@@ -228,6 +228,53 @@ async def test_thermostat_without_name(
     assert hass.states.get("sensor.thermostat_1001_humidity") is not None
 
 
+@pytest.mark.parametrize("initial_name", ["living-room", None])
+@pytest.mark.parametrize("user_name", [None, "My room"])
+async def test_room_name_updates_without_changing_customizations(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    initial_name: str | None,
+    user_name: str | None,
+) -> None:
+    sbm.apartment_data["thermostats"][0]["name"] = initial_name
+    await setup_integration(hass, config_entry)
+    device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, "123_1001"), config_entry.entry_id
+    )
+    assert device is not None
+    device_registry.async_update_device(device.id, name_by_user=user_name)
+    entities = er.async_entries_for_device(entity_registry, device.id)
+    original_ids = {entity.entity_id for entity in entities}
+    climate = next(entity for entity in entities if entity.domain == "climate")
+    entity_registry.async_update_entity(climate.entity_id, name="My thermostat")
+
+    sbm.apartment_data["thermostats"][0]["name"] = "New room"
+    await config_entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    renamed = device_registry.async_get(device.id)
+    assert renamed.name == "New room"
+    assert renamed.name_by_user == user_name
+    assert {
+        entity.entity_id
+        for entity in er.async_entries_for_device(entity_registry, device.id)
+    } == original_ids
+    assert entity_registry.async_get(climate.entity_id).name == "My thermostat"
+    assert (
+        hass.states.get(climate.entity_id).attributes["friendly_name"]
+        == f"{user_name or 'New room'} My thermostat"
+    )
+
+    # A missing name in one response must not clear the last known room name.
+    sbm.apartment_data["thermostats"][0]["name"] = None
+    await config_entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert device_registry.async_get(device.id).name == "New room"
+
+
 async def test_remove_stale_thermostat(
     hass: HomeAssistant,
     sbm: SbmStub,
