@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed: a login response with a missing or invalid token is treated as an API failure instead of invalid credentials. Home Assistant retries automatically instead of asking for the password again.
 - Fixed: building API responses are also redacted in error messages, so building addresses stay out of logs when a request fails or returns invalid JSON.
 
 ## 0.2.0 (2026-11-07)

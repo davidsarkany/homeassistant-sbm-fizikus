@@ -407,12 +407,12 @@ async def test_login_failure_that_is_not_a_refusal(
         {"token": 5, "expiration": "2099-10-11 12:45:26+00:00"},
     ],
 )
-async def test_login_without_token_is_refused(
+async def test_login_without_token_is_invalid(
     client: SbmClient, sbm: SbmStub, answer: dict[str, Any]
 ) -> None:
     sbm.queue(LOGIN, json_body=answer)
 
-    with pytest.raises(SbmAuthError):
+    with pytest.raises(SbmInvalidResponseError):
         await client.async_get_apartment_data(APARTMENT_ID)
 
 

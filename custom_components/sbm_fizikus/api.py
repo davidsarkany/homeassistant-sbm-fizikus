@@ -308,8 +308,10 @@ class SbmClient:
             )
         token = response.get("token")
         if not isinstance(token, str) or not token:
-            # SBM answered, but did not let the account in.
-            raise SbmAuthError("SBM did not return a token for the login")
+            # A broken answer does not prove that the credentials were refused.
+            raise SbmInvalidResponseError(
+                "SBM did not return a valid token for the login"
+            )
         expiration = _parse_timestamp(response.get("expiration"))
         if expiration is None:
             raise SbmInvalidResponseError("SBM returned no valid token expiration")

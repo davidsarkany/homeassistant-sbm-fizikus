@@ -105,17 +105,26 @@ async def test_failed_poll_and_recovery(
     assert warnings(caplog).count("SBM can be reached again") == 1
 
 
-@pytest.mark.parametrize("status", [400, 404, 405, 408, 429, 503])
+@pytest.mark.parametrize(
+    "answer",
+    [{"status": status} for status in [400, 404, 405, 408, 429, 503]]
+    + [
+        {"json_body": {"error": "Internal server error"}},
+        {"json_body": {"token": None}},
+        {"json_body": {"token": ""}},
+        {"json_body": {"token": 5}},
+    ],
+)
 async def test_failed_relogin_keeps_polling_and_recovers(
     hass: HomeAssistant,
     sbm: SbmStub,
     config_entry: MockConfigEntry,
     freezer: FrozenDateTimeFactory,
-    status: int,
+    answer: dict[str, Any],
 ) -> None:
     await setup_integration(hass, config_entry)
     sbm.queue("get_apartment_data", status=401)
-    sbm.queue("get_jw_token", status=status)
+    sbm.queue("get_jw_token", **answer)
 
     freezer.tick(timedelta(seconds=121))
     async_fire_time_changed(hass)

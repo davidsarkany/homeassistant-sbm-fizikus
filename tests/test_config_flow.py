@@ -88,7 +88,11 @@ async def test_user_flow(hass: HomeAssistant, sbm: SbmStub) -> None:
     ("operation", "answer", "error"),
     [
         ("get_jw_token", {"status": 401}, "invalid_auth"),
-        ("get_jw_token", {"json_body": {"message": "Wrong password"}}, "invalid_auth"),
+        (
+            "get_jw_token",
+            {"json_body": {"message": "Wrong password"}},
+            "cannot_connect",
+        ),
         # What SBM answers to a wrong password or username (live captures).
         (
             "get_jw_token",
