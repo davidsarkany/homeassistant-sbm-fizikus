@@ -136,6 +136,7 @@ The tests use [uv](https://docs.astral.sh/uv/) and the Python version in `.pytho
 uv sync
 uv run ruff check
 uv run ruff format --check
+uv run mypy
 uv run pytest --cov --cov-report=term-missing
 ```
 

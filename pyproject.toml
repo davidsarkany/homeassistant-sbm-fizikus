@@ -13,6 +13,7 @@ dev = [
     "pytest-homeassistant==2026.11.0",
     "pytest-cov==7.1.0",
     "ruff==0.17.3",
+    "mypy==2.4.1",
 ]
 
 [tool.uv]
@@ -40,6 +41,14 @@ branch = true
 fail_under = 100
 show_missing = true
 skip_covered = false
+
+[tool.mypy]
+# Only the integration: the tests read states and private values without the checks
+# that strict typing asks for.
+files = ["custom_components"]
+strict = true
+# custom_components has no __init__.py, like in a Home Assistant config directory.
+explicit_package_bases = true
 
 [tool.ruff]
 target-version = "py314"

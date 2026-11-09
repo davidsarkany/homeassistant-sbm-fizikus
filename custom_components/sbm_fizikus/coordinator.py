@@ -79,8 +79,8 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         The building found is kept, and looked up again only when it is not among
         the given ones.
         """
-        if self._building_id in building_ids:
-            return self._building_id
+        if (known := self._building_id) is not None and known in building_ids:
+            return known
         for building_id in building_ids:
             apartments = await _async_fetch(
                 self.client.async_get_apartments(building_id)

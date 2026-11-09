@@ -136,6 +136,7 @@ A tesztekhez [uv](https://docs.astral.sh/uv/) és a `.python-version` fájlban m
 uv sync
 uv run ruff check
 uv run ruff format --check
+uv run mypy
 uv run pytest --cov --cov-report=term-missing
 ```
 
