@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-10)
 
 - New: a condensation risk sensor for every thermostat (disabled by default), the notice on the room card of the SBM Fizikus app: `none`, `high_humidity` ("Magas páratartalom") or `cooling_disabled` ("Hűtés letiltva", condensation is expected).
 
