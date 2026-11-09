@@ -52,6 +52,7 @@ The names of all entities stay in English in every language. Home Assistant buil
 | Climate | yes | Measured temperature and humidity, target temperature, heating or cooling, and whether the thermostat is active. |
 | Humidity | yes | Measured relative humidity. |
 | Dew point | no | Dew point calculated by SBM, rounded to 0.1 °C. |
+| Condensation risk | no | The notice on the room card of the app: `none`, `high_humidity` (ventilate to avoid condensation) or `cooling_disabled` (condensation is expected, so SBM does not cool the room). |
 | Temperature | no | Measured temperature. |
 | Target temperature | no | Target temperature. |
 | System mode | no | Diagnostic: `off` while the system is switched off, `heating` or `cooling` while the thermostat is active, otherwise `idle`. |

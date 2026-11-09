@@ -51,6 +51,13 @@
   },
   "entity": {
     "sensor": {
+      "condensation_risk": {
+        "state": {
+          "cooling_disabled": "Condensation expected, cooling disabled",
+          "high_humidity": "High humidity",
+          "none": "None"
+        }
+      },
       "system_mode": {
         "state": {
           "cooling": "Cooling",

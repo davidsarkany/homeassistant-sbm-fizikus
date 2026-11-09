@@ -43,6 +43,8 @@ from .entity import SbmFizikusEntity, async_add_thermostat_entities
 PARALLEL_UPDATES = 0
 
 _SYSTEM_MODES = {OPERATION_MODE_HEATING: "heating", OPERATION_MODE_COOLING: "cooling"}
+# The notices of the room card of the app, by `condensationRiskLevel`.
+_CONDENSATION_RISKS = {0: "none", 1: "high_humidity", 2: "cooling_disabled"}
 
 
 def _system_mode(data: SbmApartmentData, thermostat: SbmThermostat) -> str | None:
@@ -52,6 +54,13 @@ def _system_mode(data: SbmApartmentData, thermostat: SbmThermostat) -> str | Non
     if not thermostat.active:
         return "idle"
     return _SYSTEM_MODES.get(data.operation_mode)
+
+
+def _condensation_risk(_: SbmApartmentData, thermostat: SbmThermostat) -> str | None:
+    """Return the notice of the room card; a level it does not have is unknown."""
+    if (level := thermostat.condensation_risk_level) is None:
+        return None
+    return _CONDENSATION_RISKS.get(level)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -126,6 +135,16 @@ SENSORS: tuple[SbmFizikusSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=_system_mode,
+    ),
+    SbmFizikusSensorEntityDescription(
+        key="condensation_risk",
+        name="Condensation risk",
+        # Only for the translations of the states.
+        translation_key="condensation_risk",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(_CONDENSATION_RISKS.values()),
+        entity_registry_enabled_default=False,
+        value_fn=_condensation_risk,
     ),
 )
 

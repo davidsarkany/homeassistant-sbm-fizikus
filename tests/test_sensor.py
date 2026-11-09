@@ -238,3 +238,61 @@ async def test_water_sensors_do_not_depend_on_the_thermostats(
 
     assert hass.states.get("sensor.sbm_fizikus_flow_rate").state == "0.0"
     assert hass.states.get("sensor.living_room_humidity").state == STATE_UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    ("level", "expected"),
+    [
+        (0, "none"),
+        (1, "high_humidity"),
+        (2, "cooling_disabled"),
+        # Levels the app has no notice for, and values that are not a level.
+        (3, STATE_UNKNOWN),
+        (-1, STATE_UNKNOWN),
+        (1.0, STATE_UNKNOWN),
+        (True, STATE_UNKNOWN),
+        (None, STATE_UNKNOWN),
+    ],
+)
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_condensation_risk(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    level: object,
+    expected: str,
+) -> None:
+    """The notice of the room card of the app, from condensationRiskLevel."""
+    sbm.apartment_data["thermostats"][0]["condensationRiskLevel"] = level
+
+    await setup_integration(hass, config_entry)
+
+    state = hass.states.get("sensor.living_room_condensation_risk")
+    assert state.state == expected
+    assert state.name == "living-room Condensation risk"
+    assert state.attributes[ATTR_DEVICE_CLASS] == SensorDeviceClass.ENUM
+    assert state.attributes[ATTR_OPTIONS] == [
+        "none",
+        "high_humidity",
+        "cooling_disabled",
+    ]
+    entry = entity_registry.async_get("sensor.living_room_condensation_risk")
+    assert entry is not None
+    assert entry.entity_category is None
+    assert entry.unique_id == f"123_{LIVING_ROOM_ID}_condensation_risk"
+    # The other thermostats keep their own level.
+    assert hass.states.get("sensor.bedroom_condensation_risk").state == "none"
+
+
+async def test_condensation_risk_is_disabled_by_default(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    await setup_integration(hass, config_entry)
+
+    entry = entity_registry.async_get("sensor.living_room_condensation_risk")
+    assert entry is not None
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION

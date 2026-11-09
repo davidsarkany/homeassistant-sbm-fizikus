@@ -51,6 +51,13 @@
   },
   "entity": {
     "sensor": {
+      "condensation_risk": {
+        "state": {
+          "cooling_disabled": "Párakicsapódás várható, hűtés letiltva",
+          "high_humidity": "Magas páratartalom",
+          "none": "Nincs"
+        }
+      },
       "system_mode": {
         "state": {
           "cooling": "Hűtés",

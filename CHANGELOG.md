@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New: a condensation risk sensor for every thermostat (disabled by default), the notice on the room card of the SBM Fizikus app: `none`, `high_humidity` ("Magas páratartalom") or `cooling_disabled` ("Hűtés letiltva", condensation is expected).
+
 ## 0.2.1 (2026-11-08)
 
 - Fixed: room names changed in SBM update at the next poll without a reload. Custom names in Home Assistant and existing entity IDs are preserved; a missing room name keeps the last known name.

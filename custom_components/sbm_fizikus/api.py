@@ -130,6 +130,10 @@ class SbmThermostat:
     # pending, else `childLock`, like the app. SBM reports null for a thermostat
     # whose lock was never set (live capture, 2026-11-07), which is unlocked.
     child_lock: bool
+    # `condensationRiskLevel`, the notice on the room card of the app: 0 is no
+    # notice, 1 is high humidity, 2 is cooling disabled as condensation is expected.
+    # None when SBM does not report it as an integer.
+    condensation_risk_level: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -584,6 +588,7 @@ def _parse_thermostat(data: Mapping[str, Any]) -> SbmThermostat:
         dew_point=_optional_tenths(data.get("dewPointDegC")),
         target_temperature=_target_temperature(data),
         child_lock=_child_lock(data),
+        condensation_risk_level=_optional_int(data.get("condensationRiskLevel")),
     )
 
 
@@ -636,6 +641,11 @@ def _round_setpoint(temperature: float) -> float:
 def _is_int(value: Any) -> TypeIs[int]:
     """Return whether a JSON value is an integer (booleans are not)."""
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _optional_int(value: Any) -> int | None:
+    """Return a JSON integer as it is, anything else as None."""
+    return value if _is_int(value) else None
 
 
 def _optional_float(value: Any) -> float | None:

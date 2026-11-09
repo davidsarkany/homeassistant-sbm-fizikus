@@ -618,6 +618,7 @@ async def test_apartment_data(client: SbmClient) -> None:
         dew_point=15.9,
         target_temperature=23.0,
         child_lock=False,
+        condensation_risk_level=0,
     )
     assert data.firmware_version == "1.2.11-legacy"
     assert not data.system_off
@@ -812,6 +813,7 @@ async def test_thermostat_values_that_are_missing_or_invalid(
         "dew_point": None,
         "target_temperature": None,
         "child_lock": False,
+        "condensation_risk_level": None,
     }
     assert data.thermostats == {
         1: SbmThermostat(thermostat_id=1, **unknown),

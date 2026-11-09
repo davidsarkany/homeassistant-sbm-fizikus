@@ -15,6 +15,7 @@ The MQTT bridge stays as it is. The integration is a second, independent way to 
 Supported:
 
 - Each thermostat's measured temperature, humidity, dew point and target temperature, and whether it calls for heating or cooling.
+- Each thermostat's condensation risk, the notice on the room card of the app.
 - Setting a thermostat's target temperature.
 - Switching the SBM Fizikus system of an apartment on and off.
 - The outdoor temperature and humidity of the building, fetched only while an outdoor sensor is enabled.
@@ -49,7 +50,7 @@ All calls are `PUT https://ps9et7hsp3.execute-api.eu-central-1.amazonaws.com/fro
 | `update_thermostat_settings` | `thermostat_id` (int), `temp_setpoint_degC` (number) | `thermostat_id` | set temperature |
 | `update_apartment_settings` | `apartment_id` (**string**), `disabled` (bool) | `apartment_id` (string), next to `message`: `Apartment settings updated successfully.` | switch the system on or off |
 
-Per thermostat: `ID`, `name` (may be null), `measuredTempDegC`, `measuredHumPerc`, `dewPointDegC`, `temperatureSetpointDegC`, `temperatureSetpointCommandDegC`, `active`.
+Per thermostat: `ID`, `name` (may be null), `measuredTempDegC`, `measuredHumPerc`, `dewPointDegC`, `temperatureSetpointDegC`, `temperatureSetpointCommandDegC`, `active`, `childLock`, `childLockCommand`, `condensationRiskLevel`.
 
 Known facts:
 
@@ -127,8 +128,11 @@ The client mirrors the bridge's `SbmClient`: positional arrays are validated by 
 | `temperature` | Temperature | `measuredTempDegC` | temperature, measurement, °C | no |
 | `target_temperature` | Target temperature | `temperatureSetpointCommandDegC` while pending, otherwise `temperatureSetpointDegC` | temperature, measurement, °C | no |
 | `system_mode` | System mode | `off` while the system is switched off, `heating` / `cooling` while active, otherwise `idle`; unknown while active with an unknown mode | enum (`heating`, `cooling`, `idle`, `off`), diagnostic | no |
+| `condensation_risk` | Condensation risk | `condensationRiskLevel`: `0` is `none`, `1` is `high_humidity`, `2` is `cooling_disabled`, the notices on the room card of the app; anything else is unknown | enum (`none`, `high_humidity`, `cooling_disabled`) | no |
 
-`unique_id` = `{apartment_id}_{thermostat_id}_{key}`. `PARALLEL_UPDATES = 0`, because the coordinator polls. The bridge has all of them but the dew point, with the same names; its sensors are disabled by default too.
+`unique_id` = `{apartment_id}_{thermostat_id}_{key}`. `PARALLEL_UPDATES = 0`, because the coordinator polls. The bridge has all of them but the dew point and the condensation risk, with the same names; its sensors are disabled by default too.
+
+The condensation risk is SBM's value as it is. The app shows no notice while the system is switched off, whatever SBM reports; the sensor does not hide the level then, as high humidity is worth knowing with the system off too. It is not a diagnostic entity: it is a state to automate on, for example to start ventilation.
 
 ### Entity names and IDs
 

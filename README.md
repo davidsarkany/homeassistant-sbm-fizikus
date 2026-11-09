@@ -52,6 +52,7 @@ Az entitások neve minden nyelven angol, ezért a Home Assistantban is az angol 
 | Klíma | igen | Mért hőmérséklet és páratartalom, célhőmérséklet, fűtés vagy hűtés, és hogy a termosztát aktív-e. |
 | Humidity (páratartalom) | igen | Mért relatív páratartalom. |
 | Dew point (harmatpont) | nem | Az SBM által számított harmatpont, 0,1 °C-ra kerekítve. |
+| Condensation risk (párakicsapódás kockázata) | nem | Az alkalmazás helyiségkártyájának figyelmeztetése: `none`, `high_humidity` (szellőztess, hogy elkerüld a párakicsapódást) vagy `cooling_disabled` (párakicsapódás várható, ezért az SBM nem hűti a helyiséget). |
 | Temperature (hőmérséklet) | nem | Mért hőmérséklet. |
 | Target temperature (célhőmérséklet) | nem | Célhőmérséklet. |
 | System mode (rendszermód) | nem | Diagnosztikai: `off`, amíg a rendszer ki van kapcsolva, `heating` vagy `cooling`, amíg a termosztát aktív, egyébként `idle`. |
