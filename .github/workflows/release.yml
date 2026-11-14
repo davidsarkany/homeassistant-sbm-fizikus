@@ -2,7 +2,9 @@ name: Release
 
 # Publishes the GitHub release of a pushed version tag, with the section of the tag
 # in CHANGELOG.md as its notes. The tag must be the version of the manifest; the
-# tests check that the other places that name the version agree with it.
+# tests check that the other places that name the version agree with it. The lint,
+# the type check and the tests run on the commit of the tag first, and a failure
+# publishes nothing, so a tag on a commit that does not pass has no release.
 
 on:
   push:
@@ -10,12 +12,20 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
   release:
     name: Release
+    needs: tests
     runs-on: ubuntu-latest
+    permissions:
+      # To create the release.
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - name: Check that the tag is the version of the manifest
