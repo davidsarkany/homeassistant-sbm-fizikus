@@ -1,6 +1,6 @@
 [project]
 name = "homeassistant-sbm-fizikus"
-version = "0.3.0"
+version = "1.0.0"
 description = "Home Assistant custom integration for SBM Fizikus thermostats"
 readme = "README.en.md"
 requires-python = ">=3.14.2"
