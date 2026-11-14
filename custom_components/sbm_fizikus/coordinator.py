@@ -1,5 +1,6 @@
 """Coordinators of the SBM Fizikus integration."""
 
+import asyncio
 from collections.abc import Awaitable, Collection
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -70,6 +71,9 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         # The building of the apartment, looked up when needed; the config entry
         # does not store it. The outdoor coordinator uses it too.
         self._building_id: int | None = None
+        # Both coordinators may look the building up in the same poll; the second
+        # one waits for the first and uses what it found.
+        self._building_lookup_lock = asyncio.Lock()
         self._building_off = False
         self._building_checked: datetime | None = None
 
@@ -79,20 +83,22 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
         The building found is kept, and looked up again only when it is not among
         the given ones.
         """
-        if (known := self._building_id) is not None and known in building_ids:
-            return known
-        for building_id in building_ids:
-            apartments = await _async_fetch(
-                self.client.async_get_apartments(building_id)
-            )
-            if any(
-                apartment.apartment_id == self.apartment_id for apartment in apartments
-            ):
-                LOGGER.debug(
-                    "Apartment %s is in building %s", self.apartment_id, building_id
+        async with self._building_lookup_lock:
+            if (known := self._building_id) is not None and known in building_ids:
+                return known
+            for building_id in building_ids:
+                apartments = await _async_fetch(
+                    self.client.async_get_apartments(building_id)
                 )
-                self._building_id = building_id
-                return building_id
+                if any(
+                    apartment.apartment_id == self.apartment_id
+                    for apartment in apartments
+                ):
+                    LOGGER.debug(
+                        "Apartment %s is in building %s", self.apartment_id, building_id
+                    )
+                    self._building_id = building_id
+                    return building_id
         raise UpdateFailed(
             translation_domain=DOMAIN,
             translation_key="building_not_found",
@@ -102,9 +108,10 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
     async def _async_get_building_off(self) -> bool:
         """Return whether the system is switched off for the whole building.
 
-        Asked every BUILDING_UPDATE_INTERVAL; in between, and when it cannot be
-        fetched, the last known value. A refused login still starts the
-        reauthentication.
+        Asked every BUILDING_UPDATE_INTERVAL; in between, the last known value.
+        When it cannot be fetched, the last known value too, and the next poll asks
+        again, so a failure does not hide a switched-off building for a whole
+        interval. A refused login still starts the reauthentication.
         """
         now = dt_util.utcnow()
         if (
@@ -112,7 +119,6 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
             and now - self._building_checked < BUILDING_UPDATE_INTERVAL
         ):
             return self._building_off
-        self._building_checked = now
         try:
             building_id = self._building_id
             if building_id is None:
@@ -127,9 +133,10 @@ class SbmFizikusCoordinator(DataUpdateCoordinator[SbmApartmentData]):
             LOGGER.debug(
                 "Whether the building is switched off could not be fetched: %s", err
             )
-            # The building may be gone; the next check looks it up again.
+            # The building may be gone; the next poll looks it up and asks again.
             self._building_id = None
             return self._building_off
+        self._building_checked = now
         if building_off != self._building_off:
             LOGGER.info(
                 "SBM reports the system as switched %s for the whole building",

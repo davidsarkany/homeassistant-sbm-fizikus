@@ -129,11 +129,21 @@ async def test_building_that_cannot_be_fetched(
     assert "Whether the building is switched off could not be fetched" in caplog.text
     assert "Error fetching" not in caplog.text
 
-    # The next check looks the building up again, as it may be gone.
-    await wait(hass, freezer, 10)
+    # The next poll looks the building up again, as it may be gone, and asks again.
+    await wait(hass, freezer, 2)
 
     assert hass.states.get(LIVING_ROOM).state == "heat"
     assert sbm.operations.count(APARTMENTS) == 2
+    assert sbm.operations.count(BUILDING) == 3
+
+    # After an answer, the building is asked every 10 minutes again.
+    await wait(hass, freezer, 8)
+
+    assert sbm.operations.count(BUILDING) == 3
+
+    await wait(hass, freezer, 2)
+
+    assert sbm.operations.count(BUILDING) == 4
 
 
 @pytest.mark.parametrize(
@@ -159,6 +169,26 @@ async def test_building_unknown_at_setup(
 
     assert hass.states.get(LIVING_ROOM).state == "heat"
     assert hass.states.get(SYSTEM).state == STATE_ON
+
+
+async def test_building_that_cannot_be_fetched_at_setup(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """The next poll asks again, so a switched-off building shows without a wait."""
+    sbm.queue(BUILDING, status=503, text="Unavailable")
+    sbm.queue(BUILDING, json_body=BUILDING_OFF)
+
+    await setup_integration(hass, config_entry)
+
+    assert hass.states.get(LIVING_ROOM).state == "heat"
+
+    await wait(hass, freezer, 2)
+
+    assert hass.states.get(LIVING_ROOM).state == "off"
+    assert hass.states.get(SYSTEM).state == STATE_UNAVAILABLE
 
 
 async def test_refused_login_while_checking_the_building(
