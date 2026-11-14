@@ -5,6 +5,7 @@ from typing import override
 
 from homeassistant.const import Platform
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -49,6 +50,30 @@ def async_add_thermostat_entities(
     entry.async_on_unload(data.coordinator.async_add_listener(add_new_thermostats))
 
 
+def _thermostat_device_name(data: SbmFizikusData, thermostat: SbmThermostat) -> str:
+    """Return the name of the device of a thermostat.
+
+    The name of SBM. Without one, the name the device already has, so a name that
+    is missing while the entry is set up does not replace the last known one; a
+    thermostat that never had a name is named after its id, like in the bridge.
+    """
+    if thermostat.name is not None:
+        return thermostat.name
+    coordinator = data.coordinator
+    device = dr.async_get(coordinator.hass).async_get_device_by_identifier(
+        (
+            DOMAIN,
+            thermostat_device_identifier(
+                coordinator.apartment_id, thermostat.thermostat_id
+            ),
+        ),
+        coordinator.config_entry.entry_id,
+    )
+    return (device.name if device is not None else None) or (
+        f"Thermostat {thermostat.thermostat_id}"
+    )
+
+
 class SbmFizikusEntity(CoordinatorEntity[SbmFizikusCoordinator]):
     """An entity of a thermostat."""
 
@@ -73,7 +98,7 @@ class SbmFizikusEntity(CoordinatorEntity[SbmFizikusCoordinator]):
             manufacturer=MANUFACTURER,
             model=THERMOSTAT_MODEL,
             # The same name as the device of the bridge, which the entity IDs come from.
-            name=thermostat.name or f"Thermostat {self._thermostat_id}",
+            name=_thermostat_device_name(data, thermostat),
             via_device_id=data.apartment_device_id,
         )
 

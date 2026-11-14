@@ -229,6 +229,27 @@ async def test_thermostat_without_name(
     assert hass.states.get("sensor.thermostat_1001_humidity") is not None
 
 
+async def test_missing_room_name_keeps_the_known_name_after_a_reload(
+    hass: HomeAssistant,
+    sbm: SbmStub,
+    config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """A name missing while the entry is set up must not replace the known one."""
+    await setup_integration(hass, config_entry)
+    sbm.apartment_data["thermostats"][0]["name"] = None
+
+    await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, "123_1001"), config_entry.entry_id
+    )
+    assert device is not None
+    assert device.name == "living-room"
+    assert hass.states.get("climate.living_room") is not None
+
+
 @pytest.mark.parametrize("initial_name", ["living-room", None])
 @pytest.mark.parametrize("user_name", [None, "My room"])
 async def test_room_name_updates_without_changing_customizations(

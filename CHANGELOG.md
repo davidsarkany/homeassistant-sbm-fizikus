@@ -4,6 +4,7 @@
 
 - Fixed: a login answered with status 401 or 403 no longer asks for the password again. SBM refuses a wrong password or username only with status 500, so these come from elsewhere, for example the API gateway; the next poll retries instead.
 - Fixed: when the check for a system switched off for the whole building fails, the next poll (2 minutes later) tries again instead of waiting 10 minutes. A failed check at startup no longer shows a switched-off building as on for 10 minutes.
+- Fixed: a room name that SBM does not report at a restart or reload no longer renames the device to `Thermostat <id>`; the last known name stays, like at a poll.
 
 ## 0.3.0 (2026-11-10)
 
