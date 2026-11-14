@@ -135,7 +135,7 @@ async def test_setup_logs_why_sbm_cannot_be_reached(
         ("get_apartment_data", {"text": "<html>"}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 500}, ConfigEntryState.SETUP_RETRY),
         ("get_jw_token", {"status": 404}, ConfigEntryState.SETUP_RETRY),
-        ("get_jw_token", {"status": 401}, ConfigEntryState.SETUP_ERROR),
+        ("get_jw_token", {"status": 401}, ConfigEntryState.SETUP_RETRY),
         (
             "get_jw_token",
             {"status": 500, "json_body": {"error": "invalid password"}},

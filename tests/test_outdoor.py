@@ -26,7 +26,7 @@ from custom_components.sbm_fizikus.api import SbmBuilding
 from custom_components.sbm_fizikus.const import DOMAIN
 from custom_components.sbm_fizikus.coordinator import SbmFizikusOutdoorCoordinator
 
-from .conftest import APARTMENT_ID, SbmStub, setup_integration
+from .conftest import APARTMENT_ID, LOGIN_REFUSED, SbmStub, setup_integration
 
 OUTDOOR_TEMPERATURE = "sensor.sbm_fizikus_outdoor_temperature"
 OUTDOOR_HUMIDITY = "sensor.sbm_fizikus_outdoor_humidity"
@@ -347,7 +347,7 @@ async def test_refused_login_starts_reauth(
 ) -> None:
     await setup_integration(hass, config_entry)
     sbm.queue(BUILDINGS, status=401)
-    sbm.queue("get_jw_token", status=401)
+    sbm.queue("get_jw_token", **LOGIN_REFUSED)
 
     await refresh(config_entry)
 

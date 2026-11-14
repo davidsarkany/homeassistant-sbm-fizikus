@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a login answered with status 401 or 403 no longer asks for the password again. SBM refuses a wrong password or username only with status 500, so these come from elsewhere, for example the API gateway; the next poll retries instead.
+
 ## 0.3.0 (2026-11-10)
 
 - New: a condensation risk sensor for every thermostat (disabled by default), the notice on the room card of the SBM Fizikus app: `none`, `high_humidity` ("Magas páratartalom") or `cooling_disabled` ("Hűtés letiltva", condensation is expected).

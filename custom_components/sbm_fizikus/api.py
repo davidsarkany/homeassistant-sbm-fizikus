@@ -41,9 +41,10 @@ _SECRET_PAYLOAD_KEYS: Final = frozenset({"jwt_token", "pwhash", "username_or_ema
 _ANSWERS_NOT_LOGGED: Final = frozenset(
     {"get_jw_token", "get_building_access_rights", "get_building_data"}
 )
-# The `error` of SBM's answer to a refused login, which comes with status 500 (live
-# captures, 2026-11-07). Any other error of a login does not prove the credentials
-# are wrong, as SBM also answers its own failures with status 500.
+# The `error` of SBM's answer to a refused login, which always comes with status 500
+# (live captures, 2026-11-07). Any other error of a login does not prove the
+# credentials are wrong, as SBM also answers its own failures with status 500, and a
+# 401 or 403 of the login may come from the API gateway.
 _LOGIN_REFUSALS: Final = frozenset({"invalid password", "user not found"})
 # What SBM reports for an outdoor value it does not know.
 _UNKNOWN_OUTDOOR_VALUE: Final = -1.0
@@ -295,15 +296,11 @@ class SbmClient:
         try:
             response = await self._async_request("get_jw_token", payload)
         except SbmApiError as err:
-            # A route, request or server error does not prove the credentials are
-            # wrong, only a rejection or one of SBM's refusals does.
+            # Only one of SBM's refusals proves the credentials are wrong, not a
+            # route, request, gateway or server error.
             if err.sbm_error in _LOGIN_REFUSALS:
                 raise SbmAuthError(
                     f"SBM refused the login with status {err.status}: {err.sbm_error}"
-                ) from err
-            if err.is_authentication_failure:
-                raise SbmAuthError(
-                    f"SBM refused the login with status {err.status}"
                 ) from err
             raise
         if not isinstance(response, dict):

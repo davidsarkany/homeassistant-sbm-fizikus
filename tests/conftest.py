@@ -35,6 +35,11 @@ PWHASH = "2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b"
 APARTMENT_ID = 123
 APARTMENT_NAME = "BP-TEST-001-101"
 LIVING_ROOM_ID = 1001
+# What SBM answers to a login with a wrong password (live capture, 2026-11-07).
+LOGIN_REFUSED: dict[str, Any] = {
+    "status": 500,
+    "json_body": {"error": "invalid password"},
+}
 
 
 def load_fixture_json(name: str) -> Any:

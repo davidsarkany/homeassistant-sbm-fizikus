@@ -14,7 +14,7 @@ from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.sbm_fizikus.const import DOMAIN
 
-from .conftest import SbmStub, setup_integration
+from .conftest import LOGIN_REFUSED, SbmStub, setup_integration
 
 LIVING_ROOM = "climate.living_room"
 BEDROOM = "climate.bedroom"
@@ -107,7 +107,7 @@ async def test_failed_poll_and_recovery(
 
 @pytest.mark.parametrize(
     "answer",
-    [{"status": status} for status in [400, 404, 405, 408, 429, 503]]
+    [{"status": status} for status in [400, 401, 403, 404, 405, 408, 429, 503]]
     + [
         {"json_body": {"error": "Internal server error"}},
         {"json_body": {"token": None}},
@@ -146,24 +146,13 @@ async def test_failed_relogin_keeps_polling_and_recovers(
     assert sbm.operations.count("get_apartment_data") == 3
 
 
-@pytest.mark.parametrize(
-    "refusal",
-    [
-        {"status": 401},
-        # What SBM answers to a wrong password (live capture, 2026-11-07).
-        {"status": 500, "json_body": {"error": "invalid password"}},
-    ],
-)
 async def test_refused_login_starts_reauth(
-    hass: HomeAssistant,
-    sbm: SbmStub,
-    config_entry: MockConfigEntry,
-    refusal: dict[str, Any],
+    hass: HomeAssistant, sbm: SbmStub, config_entry: MockConfigEntry
 ) -> None:
     await setup_integration(hass, config_entry)
     # The password was changed: the token is rejected, and so is the new login.
     sbm.queue("get_apartment_data", status=401)
-    sbm.queue("get_jw_token", **refusal)
+    sbm.queue("get_jw_token", **LOGIN_REFUSED)
 
     await refresh(config_entry)
 

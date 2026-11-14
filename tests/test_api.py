@@ -320,17 +320,6 @@ async def test_error_message_shortens_the_answer(
     )
 
 
-@pytest.mark.parametrize("status", [401, 403])
-async def test_login_refused(client: SbmClient, sbm: SbmStub, status: int) -> None:
-    sbm.queue(LOGIN, status=status, text="details with a token")
-
-    with pytest.raises(SbmAuthError) as err:
-        await client.async_get_apartment_data(APARTMENT_ID)
-
-    assert "details" not in str(err.value)
-    assert sbm.operations == [LOGIN]
-
-
 @pytest.mark.parametrize("error", ["invalid password", "user not found"])
 async def test_login_refused_with_status_500(
     client: SbmClient, sbm: SbmStub, error: str
@@ -382,11 +371,12 @@ async def test_refusal_error_of_another_operation_is_not_a_refusal(
 
 
 @pytest.mark.parametrize(
-    "status", [400, 404, 405, 408, 409, 410, 415, 422, 429, 500, 503]
+    "status", [400, 401, 403, 404, 405, 408, 409, 410, 415, 422, 429, 500, 503]
 )
 async def test_login_failure_that_is_not_a_refusal(
     client: SbmClient, sbm: SbmStub, status: int
 ) -> None:
+    """SBM refuses a login only with status 500; a 401 or 403 may be the gateway's."""
     sbm.queue(LOGIN, status=status, text="details with a token")
 
     with pytest.raises(SbmApiError) as err:

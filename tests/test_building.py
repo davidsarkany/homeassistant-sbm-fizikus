@@ -17,7 +17,7 @@ from custom_components.sbm_fizikus.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 
-from .conftest import SbmStub, setup_integration
+from .conftest import LOGIN_REFUSED, SbmStub, setup_integration
 
 LIVING_ROOM = "climate.living_room"
 SYSTEM = "switch.sbm_fizikus_system"
@@ -169,7 +169,7 @@ async def test_refused_login_while_checking_the_building(
 ) -> None:
     await setup_integration(hass, config_entry)
     sbm.queue(BUILDING, status=401)
-    sbm.queue("get_jw_token", status=401)
+    sbm.queue("get_jw_token", **LOGIN_REFUSED)
 
     await wait(hass, freezer, 10)
 
