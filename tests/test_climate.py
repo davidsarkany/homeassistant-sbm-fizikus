@@ -35,7 +35,7 @@ from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.sbm_fizikus.const import DOMAIN
 
-from .conftest import LIVING_ROOM_ID, SbmStub, setup_integration
+from .conftest import LIVING_ROOM_ID, LOGIN_REFUSED, SbmStub, setup_integration
 
 LIVING_ROOM = "climate.living_room"
 SET_SETPOINT = "update_thermostat_settings"
@@ -258,7 +258,7 @@ async def test_set_temperature_with_refused_login_starts_reauth(
 ) -> None:
     await setup_integration(hass, config_entry)
     sbm.queue(SET_SETPOINT, status=401)
-    sbm.queue("get_jw_token", status=401)
+    sbm.queue("get_jw_token", **LOGIN_REFUSED)
 
     with pytest.raises(HomeAssistantError) as err:
         await hass.services.async_call(

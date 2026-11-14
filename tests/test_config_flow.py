@@ -87,7 +87,7 @@ async def test_user_flow(hass: HomeAssistant, sbm: SbmStub) -> None:
 @pytest.mark.parametrize(
     ("operation", "answer", "error"),
     [
-        ("get_jw_token", {"status": 401}, "invalid_auth"),
+        ("get_jw_token", {"status": 401}, "cannot_connect"),
         (
             "get_jw_token",
             {"json_body": {"message": "Wrong password"}},
@@ -388,7 +388,7 @@ async def test_reauth_flow_with_an_account_without_the_apartment(
 @pytest.mark.parametrize(
     ("operation", "answer", "error"),
     [
-        ("get_jw_token", {"status": 403}, "invalid_auth"),
+        ("get_jw_token", {"status": 403}, "cannot_connect"),
         (
             "get_jw_token",
             {"status": 500, "json_body": {"error": "invalid password"}},
